@@ -83,9 +83,16 @@ router.get("/", auth, async (req, res) => {
       limit: 2000, // adjust
     });
 
+    // const lockedBalance = txns
+    //   .filter((t) => t?.meta?.pending === true)
+    //   .reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const lockedBalance = txns
-      .filter((t) => t?.meta?.pending === true)
-      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  .filter((t) => {
+    const m = typeof t.meta === "string" ? JSON.parse(t.meta || "{}") : (t.meta || {});
+    return m.pending === true;
+  })
+  .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
 
     const availableBalance = Number(wallet.balance || 0);
 
@@ -150,8 +157,17 @@ router.get("/transactions", auth, async (req, res) => {
     order: [["createdAt", "DESC"]],
   });
 
-  res.json(txns);
+  const out = txns.map((row) => {
+    const t = row.toJSON();
+    if (typeof t.meta === "string") {
+      try { t.meta = JSON.parse(t.meta); } catch {}
+    }
+    return t;
+  });
+
+  res.json(out);
 });
+
 
 /* ================= WALLET SUMMARY (OPTIONAL) =================
 GET /api/wallet/summary

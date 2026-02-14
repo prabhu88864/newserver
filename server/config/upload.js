@@ -37,6 +37,12 @@ import path from "path";
 
 const productDir = "uploads/products";
 const profileDir = "uploads/profilePics";
+const categoryDir = "uploads/categories";
+const subCategoryDir = "uploads/subcategories";
+
+fs.mkdirSync(categoryDir, { recursive: true });
+fs.mkdirSync(subCategoryDir, { recursive: true });
+
 
 fs.mkdirSync(productDir, { recursive: true });
 fs.mkdirSync(profileDir, { recursive: true });
@@ -77,3 +83,37 @@ export const uploadProfilePic = multer({
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 }).single("profilePic");
+
+
+// ✅ category storage
+const categoryStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, categoryDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+
+// ✅ subcategory storage
+const subCategoryStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, subCategoryDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+
+// ✅ single("image") for category image
+export const uploadCategoryImage = multer({
+  storage: categoryStorage,
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 },
+}).single("image");
+
+// ✅ single("image") for subcategory image
+export const uploadSubCategoryImage = multer({
+  storage: subCategoryStorage,
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 },
+}).single("image");
+

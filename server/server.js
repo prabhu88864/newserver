@@ -39,6 +39,12 @@ import reportsRoutes from "./routes/reports.js";
 import pairsRoutes from "./routes/pairs.js";
 import withdrawalRoutes from "./routes/withdrawals.js";
 import awardsRoutes from "./routes/awards.js";
+import Category from "./models/Category.js";
+import SubCategory from "./models/SubCategory.js";
+import RankAchievement from "./models/RankAchievement.js";
+import RankSetting from "./models/RankSetting.js";
+import categoryRoutes from "./routes/categories.js";
+import subCategoryRoutes from "./routes/subcategories.js";
 
 
 
@@ -49,7 +55,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-sequelize.sync().then(() => console.log('MySQL connected'))
+sequelize.sync({alter:true}).then(() => console.log('MySQL connected'))
 app.use("/uploads", express.static("uploads"));
 
 /* routes */
@@ -77,8 +83,10 @@ app.use("/api/pairs", pairsRoutes);
 app.use("/api/withdrawals", withdrawalRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/awards", awardsRoutes);
-import RankAchievement from "./models/RankAchievement.js";
-import RankSetting from "./models/RankSetting.js";
+
+
+app.use("/api/categories", categoryRoutes);
+app.use("/api/subcategories", subCategoryRoutes);
 
 
 
@@ -137,6 +145,9 @@ ReferralEdge.belongsTo(User, { foreignKey: "childId", as: "child" });
 
 RankAchievement.belongsTo(User, { foreignKey: "userId" });
 User.hasMany(RankAchievement, { foreignKey: "userId" });
+
+Category.hasMany(SubCategory, { foreignKey: "categoryId", as: "subCategories" });
+SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
 
 

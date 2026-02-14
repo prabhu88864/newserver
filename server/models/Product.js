@@ -17,10 +17,10 @@ const Product = sequelize.define(
     packSize: { type: DataTypes.STRING(100), allowNull: true },
 
     // For search/filter later
-    category: { type: DataTypes.STRING(100), allowNull: true },
+    categoryName: { type: DataTypes.STRING(120), allowNull: false },
+    subCategoryName: { type: DataTypes.STRING(120), allowNull: true },
 
-    // Optional SKU or product code
-    sku: { type: DataTypes.STRING(80), allowNull: true, unique: true },
+   
 
     description: { type: DataTypes.TEXT, allowNull: true },
 

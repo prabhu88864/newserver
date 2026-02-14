@@ -137,6 +137,9 @@ import { uploadProductImages } from "../config/upload.js";
 import { Op } from "sequelize";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
+import Category from "../models/Category.js";
+import SubCategory from "../models/SubCategory.js";
+
 
 const router = express.Router();
 
@@ -159,13 +162,14 @@ router.get("/", auth, async (req, res) => {
       where[Op.or] = [
         { name: { [Op.like]: `%${q}%` } },
         { sku: { [Op.like]: `%${q}%` } },
-        { category: { [Op.like]: `%${q}%` } },
+        { categoryName: { [Op.like]: `%${q}%` } },
+{ subCategoryName: { [Op.like]: `%${q}%` } },
         { brand: { [Op.like]: `%${q}%` } },
         { manufacturer: { [Op.like]: `%${q}%` } },
       ];
     }
 
-    if (category) where.category = category;
+     if (category) where.categoryName = category;
     if (badge) where.badge = badge;
     if (featured === "true") where.featured = true;
     if (inStock === "true") where.stockQty = { [Op.gt]: 0 };
@@ -198,7 +202,7 @@ router.get("/:id", auth, async (req, res) => {
 
 /* ================= CREATE PRODUCT ================= */
 // ✅ Admin only (recommended)
-router.post("/", auth, isAdmin, (req, res) => {
+router.post("/", auth,  (req, res) => {
   uploadProductImages(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
