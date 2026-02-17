@@ -125,8 +125,8 @@ WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
 User.hasMany(Address, { foreignKey: "userId", as: "addresses", onDelete: "CASCADE" });
 Address.belongsTo(User, { foreignKey: "userId", as: "user" });
 // order ↔ Adress
-Order.belongsTo(Address, { foreignKey: "addressId" });
-Address.hasMany(Order, { foreignKey: "addressId" });
+Order.belongsTo(Address, { foreignKey: { name: "addressId", allowNull: true } }); // ✅ important
+Address.hasMany(Order, { foreignKey: { name: "addressId", allowNull: true } }); 
 
 Payment.belongsTo(User, { foreignKey: "userId" });
 Payment.belongsTo(Order, { foreignKey: "orderId" });
