@@ -7,7 +7,7 @@ const Order = sequelize.define(
     userId: { type: DataTypes.INTEGER, allowNull: false },
 
     totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    addressId: { type: DataTypes.INTEGER, allowNull: false },
+    addressId: { type: DataTypes.INTEGER, allowNull: true },
 
    deliveredOn: {
       type: DataTypes.DATE,
