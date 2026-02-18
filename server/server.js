@@ -55,7 +55,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// sequelize.sync({alter:true}).then(() => console.log('MySQL connected'))
+ sequelize.sync({force:true}).then(() => console.log('MySQL connected'))
 app.use("/uploads", express.static("uploads"));
 
 /* routes */
