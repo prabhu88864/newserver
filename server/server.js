@@ -55,7 +55,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
- sequelize.sync({force:true}).then(() => console.log('MySQL connected'))
+//  sequelize.sync({force:true}).then(() => console.log('MySQL connected'))
 app.use("/uploads", express.static("uploads"));
 
 /* routes */
@@ -150,7 +150,7 @@ Category.hasMany(SubCategory, { foreignKey: "categoryId", as: "subCategories" })
 SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
 
-sequelize.sync({alter:true}).then(() => console.log('MySQL connected'))
+// sequelize.sync({alter:true}).then(() => console.log('MySQL connected'))
 
 app.listen(3000, () => console.log('Server running on 3000'))
 
