@@ -153,7 +153,7 @@ const toNum = (v, def = 0) => {
 // GET /api/products?search=&category=&badge=&featured=true&inStock=true
 router.get("/", auth, async (req, res) => {
   try {
-    const { search, category, badge, featured, inStock } = req.query;
+    const { search, category, subCategory, subCategoryId, badge, featured, inStock } = req.query;
 
     const where = { isActive: true };
 
@@ -163,13 +163,25 @@ router.get("/", auth, async (req, res) => {
         { name: { [Op.like]: `%${q}%` } },
         { sku: { [Op.like]: `%${q}%` } },
         { categoryName: { [Op.like]: `%${q}%` } },
-{ subCategoryName: { [Op.like]: `%${q}%` } },
+        { subCategoryName: { [Op.like]: `%${q}%` } },
         { brand: { [Op.like]: `%${q}%` } },
         { manufacturer: { [Op.like]: `%${q}%` } },
       ];
     }
 
-     if (category) where.categoryName = category;
+    if (category) where.categoryName = category;
+    if (subCategory) where.subCategoryName = subCategory;
+
+    if (subCategoryId) {
+      const subCat = await SubCategory.findByPk(subCategoryId);
+      if (subCat) {
+        where.subCategoryName = subCat.name;
+      } else {
+        // if subCategoryId is invalid, return empty list
+        return res.json([]);
+      }
+    }
+
     if (badge) where.badge = badge;
     if (featured === "true") where.featured = true;
     if (inStock === "true") where.stockQty = { [Op.gt]: 0 };
