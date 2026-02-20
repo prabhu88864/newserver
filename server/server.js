@@ -55,7 +55,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
- sequelize.sync({}).then(() => console.log('MySQL connected'))
+//  sequelize.sync({}).then(() => console.log('MySQL connected'))
 app.use("/uploads", express.static("uploads"));
 
 /* routes */
@@ -154,7 +154,7 @@ SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
     await sequelize.authenticate();
     console.log("✅ MySQL authenticated");
 
-    await sequelize.sync({ alter: true }); // ✅ creates new tables / adds columns safely
+    await sequelize.sync(); // ✅ creates new tables / adds columns safely
     console.log("✅ MySQL synced");
 
     app.listen(3000, () => console.log("Server running on 3000"));
@@ -166,6 +166,3 @@ SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 // sequelize.sync({alter:true}).then(() => console.log('MySQL connected'))
 
 // app.listen(3000, () => console.log('Server running on 3000'))
-
-
-
