@@ -227,6 +227,7 @@ router.get("/", auth, isAdmin, async (req, res) => {
       where,
       attributes: [
         "id",
+        "userID",
         "name",
         "email",
         "phone",
@@ -263,6 +264,7 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
     const user = await User.findByPk(req.params.id, {
       attributes: [
         "id",
+        "userID",
         "name",
         "email",
         "phone",
