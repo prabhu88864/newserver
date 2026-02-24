@@ -152,7 +152,7 @@ async function addSpendAndUnlockIfNeeded({ userId, amount, t }) {
   });
   if (!wallet) throw new Error("Wallet not found");
 
-const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
+  const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
   const wasUnlocked = !!wallet.isUnlocked;
 
@@ -213,15 +213,13 @@ const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 //   return { paid: true, sponsorId, txnId: txn.id, joinBonus: JOIN_BONUS };
 // }
 async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
-const minSpend = await getSettingNumber("MIN_SPEND_UNLOCK", t) || 30000;
-
+  const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
   const isUnlockedUser = async (userId) => {
     const w = await Wallet.findOne({ where: { userId }, transaction: t });
     return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
   };
 
-  // find all pending join bonus txns that belong to sponsor wallets
   const pendingJoinTxns = await WalletTransaction.findAll({
     where: { type: "CREDIT", reason: "REFERRAL_JOIN_BONUS" },
     transaction: t,
@@ -261,7 +259,81 @@ const minSpend = await getSettingNumber("MIN_SPEND_UNLOCK", t) || 30000;
 
     await sponsorWallet.save({ transaction: t });
 
-    txn.meta = { ...meta, pending: false, releasedAt: new Date().toISOString(), pendingReason: null };
+    txn.meta = {
+      ...meta,
+      pending: false,
+      releasedAt: new Date().toISOString(),
+      pendingReason: null,
+    };
+    await txn.save({ transaction: t });
+
+    released += 1;
+  }
+
+  return { released };
+}
+
+// ✅ when sponsor unlocks -> release all pending join bonuses for their referrals
+async function tryReleasePendingJoinBonusesForSponsor({ sponsorId, t }) {
+  const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
+
+  const isUnlockedUser = async (userId) => {
+    const w = await Wallet.findOne({ where: { userId }, transaction: t });
+    return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
+  };
+
+  const sponsorOk = await isUnlockedUser(sponsorId);
+  if (!sponsorOk) return { released: 0 };
+
+  // find all pending join bonus txns in wallets belonging to this sponsor
+  const sponsorWallet = await Wallet.findOne({
+    where: { userId: sponsorId },
+    transaction: t,
+    lock: t.LOCK.UPDATE,
+  });
+  if (!sponsorWallet) return { released: 0 };
+
+  const pendingJoinTxns = await WalletTransaction.findAll({
+    where: {
+      walletId: sponsorWallet.id,
+      type: "CREDIT",
+      reason: "REFERRAL_JOIN_BONUS",
+    },
+    transaction: t,
+    lock: t.LOCK.UPDATE,
+  });
+
+  let released = 0;
+
+  for (const txn of pendingJoinTxns) {
+    const meta = txn.meta || {};
+    if (meta.pending !== true) continue;
+
+    const referredUserId = meta.referredUserId;
+    if (!referredUserId) continue;
+
+    const referredOk = await isUnlockedUser(referredUserId);
+    if (!referredOk) continue;
+
+    const amt = Number(txn.amount || 0);
+
+    // ✅ move locked -> balance
+    sponsorWallet.lockedBalance = Math.max(
+      0,
+      Number(sponsorWallet.lockedBalance || 0) - amt
+    );
+    sponsorWallet.balance = Number(sponsorWallet.balance || 0) + amt;
+    sponsorWallet.totalBalance =
+      Number(sponsorWallet.balance || 0) + Number(sponsorWallet.lockedBalance || 0);
+
+    await sponsorWallet.save({ transaction: t });
+
+    txn.meta = {
+      ...meta,
+      pending: false,
+      releasedAt: new Date().toISOString(),
+      pendingReason: null,
+    };
     await txn.save({ transaction: t });
 
     released += 1;
@@ -286,7 +358,7 @@ async function tryPayPendingJoinBonusesForSponsor({ sponsorId, t }) {
     lock: t.LOCK.UPDATE,
   });
   if (!pending.length) return { paidCount: 0 };
-const JOIN_BONUS = (await getSettingNumber("JOIN_BONUS", t)) || 5000;
+  const JOIN_BONUS = (await getSettingNumber("JOIN_BONUS", t)) || 5000;
 
 
   const referredIds = pending.map((r) => r.referredUserId);
@@ -347,8 +419,8 @@ router.post("/", auth, async (req, res) => {
     if (!paymentMethod) {
       return res.status(400).json({ msg: "paymentMethod required" });
     }
-      if (!addressId) return res.status(400).json({ msg: "addressId required" });
-      
+    if (!addressId) return res.status(400).json({ msg: "addressId required" });
+
 
     // Load cart with products
     const cart = await Cart.findOne({
@@ -359,34 +431,34 @@ router.post("/", auth, async (req, res) => {
     if (!cart || !cart.CartItems || cart.CartItems.length === 0) {
       return res.status(400).json({ msg: "Cart is empty" });
     }
-        const address = await Address.findOne({
+    const address = await Address.findOne({
       where: { id: addressId, userId: req.user.id, isActive: true },
     });
     if (!address) return res.status(400).json({ msg: "Invalid address" });
-let billAmount = 0;
-let totalDiscount = 0;
+    let billAmount = 0;
+    let totalDiscount = 0;
 
-const dbUser = await User.findByPk(req.user.id, { attributes: ["id", "userType"] });
-const userType = String(dbUser?.userType || "").toUpperCase();
+    const dbUser = await User.findByPk(req.user.id, { attributes: ["id", "userType"] });
+    const userType = String(dbUser?.userType || "").toUpperCase();
 
-for (const item of cart.CartItems) {
-  const p = item.Product;
-  const qty = Number(item.qty || 0);
-  const price = Number(p.price || 0);
+    for (const item of cart.CartItems) {
+      const p = item.Product;
+      const qty = Number(item.qty || 0);
+      const price = Number(p.price || 0);
 
-  let discPercent = 0;
-  if (userType === "ENTREPRENEUR") {
-    discPercent = Number(p.entrepreneurDiscount || 0);
-  } else if (userType === "TRAINEE_ENTREPRENEUR") {
-    discPercent = Number(p.traineeEntrepreneurDiscount || 0);
-  }
+      let discPercent = 0;
+      if (userType === "ENTREPRENEUR") {
+        discPercent = Number(p.entrepreneurDiscount || 0);
+      } else if (userType === "TRAINEE_ENTREPRENEUR") {
+        discPercent = Number(p.traineeEntrepreneurDiscount || 0);
+      }
 
-  const lineBase = qty * price;
-  const lineDiscount = (lineBase * discPercent) / 100;
+      const lineBase = qty * price;
+      const lineDiscount = (lineBase * discPercent) / 100;
 
-  billAmount += lineBase;
-  totalDiscount += lineDiscount;
-}
+      billAmount += lineBase;
+      totalDiscount += lineDiscount;
+    }
 
 
 
@@ -404,10 +476,10 @@ for (const item of cart.CartItems) {
     });
 
     const deliveryCharge = slab ? Number(slab.charge) : 0;
-   const grandTotal = Math.max(
-  0,
-  Number(billAmount) - Number(totalDiscount) + Number(deliveryCharge)
-);
+    const grandTotal = Math.max(
+      0,
+      Number(billAmount) - Number(totalDiscount) + Number(deliveryCharge)
+    );
 
 
     // ✅ WALLET: check balance BEFORE creating order
@@ -426,7 +498,7 @@ for (const item of cart.CartItems) {
     const order = await Order.create({
       userId: req.user.id,
       totalAmount: grandTotal,
-       totalDiscount: Number(totalDiscount.toFixed(2)),
+      totalDiscount: Number(totalDiscount.toFixed(2)),
 
       addressId: address.id,
       deliveryCharge: deliveryCharge,
@@ -594,21 +666,27 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
       //     await tryReleasePendingPairBonuses(t);
       // }
       if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
-  // ✅ referred unlocked now => release sponsor pending join bonus
+        // ✅ referred unlocked now => release sponsor pending join bonus
 
-      await User.update(
-        { userType: "ENTREPRENEUR" },
-        { where: { id: order.userId }, transaction: t }
-      );
-        const releasedJoin = await tryReleasePendingJoinBonusesForReferred({
+        await User.update(
+          { userType: "ENTREPRENEUR" },
+          { where: { id: order.userId }, transaction: t }
+        );
+        const releasedJoinAsReferred = await tryReleasePendingJoinBonusesForReferred({
           referredUserId: order.userId,
           t,
         });
 
-        // ✅ release pending pair bonuses too (but fix it to move locked->balance)
+        // ✅ 2) if user is sponsor for others => release their pending join bonuses
+        const releasedJoinAsSponsor = await tryReleasePendingJoinBonusesForSponsor({
+          sponsorId: order.userId,
+          t,
+        });
+
+        // ✅ 3) release pending pair bonuses too
         await tryReleasePendingPairBonuses(t);
 
-        sponsorPending = { releasedJoin };
+        sponsorPending = { releasedJoinAsReferred, releasedJoinAsSponsor };
       }
 
     }
@@ -667,11 +745,11 @@ router.get("/admin", auth, isAdmin, async (req, res) => {
               model: Product,
               ...(search && !/^\d+$/.test(search)
                 ? {
-                    where: {
-                      name: { [Op.like]: `%${search}%` },
-                    },
-                    required: false,
-                  }
+                  where: {
+                    name: { [Op.like]: `%${search}%` },
+                  },
+                  required: false,
+                }
                 : {}),
             },
           ],
@@ -738,24 +816,24 @@ router.get("/", auth, async (req, res) => {
     }
 
     const orders = await Order.findAll({
-  where,
-  include: [
-    { model: Address }, // ✅ Order belongsTo Address
-    {
-      model: OrderItem,
+      where,
       include: [
+        { model: Address }, // ✅ Order belongsTo Address
         {
-          model: Product,
-          ...(search && !/^\d+$/.test(search)
-            ? { where: { name: { [Op.like]: `%${search}%` } }, required: false }
-            : {}),
+          model: OrderItem,
+          include: [
+            {
+              model: Product,
+              ...(search && !/^\d+$/.test(search)
+                ? { where: { name: { [Op.like]: `%${search}%` } }, required: false }
+                : {}),
+            },
+          ],
         },
       ],
-    },
-  ],
-  order: [["createdAt", "DESC"]],
-  distinct: true,
-});
+      order: [["createdAt", "DESC"]],
+      distinct: true,
+    });
 
 
     res.json({ total: orders.length, orders });
