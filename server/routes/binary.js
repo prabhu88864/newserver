@@ -624,7 +624,7 @@ router.get("/stats", auth, async (req, res) => {
  * GET /api/binary/admin/tree?q=prabhu
  * GET /api/binary/admin/tree?q=5
  */
-router.get("/admin/tree", auth,  async (req, res) => {
+router.get("/admin/tree", auth, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     if (!q) return res.status(400).json({ msg: "q is required (userID/name/id)" });

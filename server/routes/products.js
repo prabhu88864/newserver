@@ -149,19 +149,18 @@ const toNum = (v, def = 0) => {
   return Number.isFinite(n) ? n : def;
 };
 
-/* ================= GET ALL PRODUCTS ================= */
-// GET /api/products?search=&category=&badge=&featured=true&inStock=true
-router.get("/", auth, async (req, res) => {
+/* ================= GET ALL / SEARCH PRODUCTS ================= */
+// Supports: GET /api/products AND /api/products/search
+const getProducts = async (req, res) => {
   try {
-    const { search, category, subCategory, subCategoryId, badge, featured, inStock } = req.query;
+    const { search, serch, category, subCategory, subCategoryId, badge, featured, inStock } = req.query;
 
     const where = { isActive: true };
 
-    const q = (search || "").trim();
+    const q = (search || serch || "").trim();
     if (q) {
       where[Op.or] = [
         { name: { [Op.like]: `%${q}%` } },
-        { sku: { [Op.like]: `%${q}%` } },
         { categoryName: { [Op.like]: `%${q}%` } },
         { subCategoryName: { [Op.like]: `%${q}%` } },
         { brand: { [Op.like]: `%${q}%` } },
@@ -177,7 +176,6 @@ router.get("/", auth, async (req, res) => {
       if (subCat) {
         where.subCategoryName = subCat.name;
       } else {
-        // if subCategoryId is invalid, return empty list
         return res.json([]);
       }
     }
@@ -196,7 +194,10 @@ router.get("/", auth, async (req, res) => {
     console.error("GET /api/products error:", err);
     res.status(500).json({ msg: "Server error" });
   }
-});
+};
+
+router.get("/", auth, getProducts);
+router.get("/search", auth, getProducts);
 
 /* ================= GET SINGLE PRODUCT ================= */
 router.get("/:id", auth, async (req, res) => {
@@ -214,7 +215,7 @@ router.get("/:id", auth, async (req, res) => {
 
 /* ================= CREATE PRODUCT ================= */
 // ✅ Admin only (recommended)
-router.post("/", auth,  (req, res) => {
+router.post("/", auth, (req, res) => {
   uploadProductImages(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });

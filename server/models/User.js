@@ -42,7 +42,7 @@ const User = sequelize.define("User", {
 
 const generateNumericUserID = () => {
   const num = Math.floor(100000 + Math.random() * 900000); // 6 digits
-  return `SUN${num}`;
+  return `S${num}`;
 };
 // ✅ generate userID BEFORE validation
 User.beforeValidate(async (user, options) => {
