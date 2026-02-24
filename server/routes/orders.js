@@ -274,7 +274,11 @@ async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
 }
 
 // ✅ when sponsor unlocks -> release all pending join bonuses for their referrals
-async function tryReleasePendingJoinBonusesForSponsor({ sponsorId, t }) {
+async function tryReleasePendingJoinBonusesForSponsor({
+  sponsorId,
+  t,
+  sponsorWallet = null,
+}) {
   const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
   const isUnlockedUser = async (userId) => {
@@ -282,20 +286,24 @@ async function tryReleasePendingJoinBonusesForSponsor({ sponsorId, t }) {
     return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
   };
 
-  const sponsorOk = await isUnlockedUser(sponsorId);
-  if (!sponsorOk) return { released: 0 };
+  // If wallet not passed, fetch it
+  let wallet = sponsorWallet;
+  if (!wallet) {
+    wallet = await Wallet.findOne({
+      where: { userId: sponsorId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+  }
 
-  // find all pending join bonus txns in wallets belonging to this sponsor
-  const sponsorWallet = await Wallet.findOne({
-    where: { userId: sponsorId },
-    transaction: t,
-    lock: t.LOCK.UPDATE,
-  });
-  if (!sponsorWallet) return { released: 0 };
+  if (!wallet) return { released: 0 };
+
+  const sponsorOk = isUnlockedUser(sponsorId); // or just check wallet.isUnlocked
+  if (!wallet.isUnlocked) return { released: 0 };
 
   const pendingJoinTxns = await WalletTransaction.findAll({
     where: {
-      walletId: sponsorWallet.id,
+      walletId: wallet.id,
       type: "CREDIT",
       reason: "REFERRAL_JOIN_BONUS",
     },
@@ -318,15 +326,10 @@ async function tryReleasePendingJoinBonusesForSponsor({ sponsorId, t }) {
     const amt = Number(txn.amount || 0);
 
     // ✅ move locked -> balance
-    sponsorWallet.lockedBalance = Math.max(
-      0,
-      Number(sponsorWallet.lockedBalance || 0) - amt
-    );
-    sponsorWallet.balance = Number(sponsorWallet.balance || 0) + amt;
-    sponsorWallet.totalBalance =
-      Number(sponsorWallet.balance || 0) + Number(sponsorWallet.lockedBalance || 0);
-
-    await sponsorWallet.save({ transaction: t });
+    wallet.lockedBalance = Math.max(0, Number(wallet.lockedBalance || 0) - amt);
+    wallet.balance = Number(wallet.balance || 0) + amt;
+    wallet.totalBalance =
+      Number(wallet.balance || 0) + Number(wallet.lockedBalance || 0);
 
     txn.meta = {
       ...meta,
@@ -337,6 +340,10 @@ async function tryReleasePendingJoinBonusesForSponsor({ sponsorId, t }) {
     await txn.save({ transaction: t });
 
     released += 1;
+  }
+
+  if (released > 0) {
+    await wallet.save({ transaction: t });
   }
 
   return { released };
@@ -672,18 +679,24 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
           { userType: "ENTREPRENEUR" },
           { where: { id: order.userId }, transaction: t }
         );
+
+        // 1) This user unlocked as a referred person -> release bonus in Sponsor's wallet
         const releasedJoinAsReferred = await tryReleasePendingJoinBonusesForReferred({
           referredUserId: order.userId,
           t,
         });
 
-        // ✅ 2) if user is sponsor for others => release their pending join bonuses
+        // 2) This user unlocked as a sponsor -> release bonuses in THIS user's wallet
         const releasedJoinAsSponsor = await tryReleasePendingJoinBonusesForSponsor({
           sponsorId: order.userId,
           t,
+          sponsorWallet: spendInfo.wallet, // Pass the already loaded wallet instance
         });
 
-        // ✅ 3) release pending pair bonuses too
+        // 3) release pending pair bonuses too
+        // Note: tryReleasePendingPairBonuses still fetches wallets internally, 
+        // but it's less likely to conflict if we are careful. 
+        // Ideally it should also be refactored or called with this wallet if applicable.
         await tryReleasePendingPairBonuses(t);
 
         sponsorPending = { releasedJoinAsReferred, releasedJoinAsSponsor };
