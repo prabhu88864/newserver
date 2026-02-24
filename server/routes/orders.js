@@ -81,14 +81,14 @@ const router = express.Router();
 //     }
 //   }
 // }
-async function tryReleasePendingPairBonuses(t) {
-  const minSpend = await getSettingNumber("MIN_SPEND_UNLOCK", t) || 30000;
+async function tryReleasePendingPairBonuses(t, walletMap) {
+  const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
-
-
-  const isUnlockedUser = async (userId) => {
-    const w = await Wallet.findOne({ where: { userId }, transaction: t });
-    return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
+  const checkUnlocked = async (uid) => {
+    const w = await getWalletFromMap(uid, walletMap, t);
+    return (
+      !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend
+    );
   };
 
   const pendingPairTxns = await WalletTransaction.findAll({
@@ -101,11 +101,20 @@ async function tryReleasePendingPairBonuses(t) {
     const meta = txn.meta || {};
     if (meta.pending !== true) continue;
 
-    // Lock wallet row (important)
-    const wallet = await Wallet.findByPk(txn.walletId, {
+    const sw = await Wallet.findByPk(txn.walletId, {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
+    if (!sw) continue;
+
+    let wallet;
+    if (walletMap.has(sw.userId)) {
+      wallet = walletMap.get(sw.userId);
+    } else {
+      wallet = sw;
+      walletMap.set(sw.userId, sw);
+    }
+
     if (!wallet) continue;
 
     const receiverId = wallet.userId;
@@ -115,9 +124,9 @@ async function tryReleasePendingPairBonuses(t) {
     if (!leftUserId || !rightUserId) continue;
 
     const [uOk, lOk, rOk] = await Promise.all([
-      isUnlockedUser(receiverId),
-      isUnlockedUser(leftUserId),
-      isUnlockedUser(rightUserId),
+      checkUnlocked(receiverId),
+      checkUnlocked(leftUserId),
+      checkUnlocked(rightUserId),
     ]);
 
     if (!uOk || !lOk || !rOk) continue;
@@ -127,9 +136,8 @@ async function tryReleasePendingPairBonuses(t) {
     // ✅ move locked -> balance
     wallet.lockedBalance = Math.max(0, Number(wallet.lockedBalance || 0) - amt);
     wallet.balance = Number(wallet.balance || 0) + amt;
-    wallet.totalBalance = Number(wallet.balance || 0) + Number(wallet.lockedBalance || 0);
-
-    await wallet.save({ transaction: t });
+    wallet.totalBalance =
+      Number(wallet.balance || 0) + Number(wallet.lockedBalance || 0);
 
     // ✅ mark txn released
     txn.meta = {
@@ -144,13 +152,24 @@ async function tryReleasePendingPairBonuses(t) {
 
 
 
-async function addSpendAndUnlockIfNeeded({ userId, amount, t }) {
+// ✅ Helper to ensure we only have ONE instance of a wallet in a transaction (prevents race conditions)
+async function getWalletFromMap(userId, walletMap, t) {
+  if (walletMap.has(userId)) return walletMap.get(userId);
+
   const wallet = await Wallet.findOne({
     where: { userId },
     transaction: t,
     lock: t.LOCK.UPDATE,
   });
-  if (!wallet) throw new Error("Wallet not found");
+  if (wallet) {
+    walletMap.set(userId, wallet);
+  }
+  return wallet;
+}
+
+async function addSpendAndUnlockIfNeeded({ userId, amount, t, walletMap }) {
+  const wallet = await getWalletFromMap(userId, walletMap, t);
+  if (!wallet) throw new Error("Wallet not found for userId: " + userId);
 
   const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
@@ -161,7 +180,7 @@ async function addSpendAndUnlockIfNeeded({ userId, amount, t }) {
     wallet.isUnlocked = true;
   }
 
-  await wallet.save({ transaction: t });
+  // wallet.save() will be called at the end of the transaction
   return { wallet, wasUnlocked, minSpend };
 }
 
@@ -212,11 +231,15 @@ async function addSpendAndUnlockIfNeeded({ userId, amount, t }) {
 
 //   return { paid: true, sponsorId, txnId: txn.id, joinBonus: JOIN_BONUS };
 // }
-async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
+async function tryReleasePendingJoinBonusesForReferred({
+  referredUserId,
+  t,
+  walletMap,
+}) {
   const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
-  const isUnlockedUser = async (userId) => {
-    const w = await Wallet.findOne({ where: { userId }, transaction: t });
+  const checkUnlocked = async (uid) => {
+    const w = await getWalletFromMap(uid, walletMap, t);
     return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
   };
 
@@ -226,7 +249,7 @@ async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
     lock: t.LOCK.UPDATE,
   });
 
-  const referredOk = await isUnlockedUser(referredUserId);
+  const referredOk = await checkUnlocked(referredUserId);
   if (!referredOk) return { released: 0 };
 
   let released = 0;
@@ -237,27 +260,35 @@ async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
     const meta = txn.meta || {};
     if (Number(meta.referredUserId) !== Number(referredUserId)) continue;
 
-    const sponsorWallet = await Wallet.findByPk(txn.walletId, {
+    const sw = await Wallet.findByPk(txn.walletId, {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
-    if (!sponsorWallet) continue;
+    if (!sw) continue;
 
-    const sponsorOk = await isUnlockedUser(sponsorWallet.userId);
+    let actualSponsorWallet;
+    if (walletMap.has(sw.userId)) {
+      actualSponsorWallet = walletMap.get(sw.userId);
+    } else {
+      actualSponsorWallet = sw;
+      walletMap.set(sw.userId, sw);
+    }
+
+    const sponsorOk = await checkUnlocked(actualSponsorWallet.userId);
     if (!sponsorOk) continue;
 
     const amt = Number(txn.amount || 0);
 
     // ✅ move locked -> balance
-    sponsorWallet.lockedBalance = Math.max(
+    actualSponsorWallet.lockedBalance = Math.max(
       0,
-      Number(sponsorWallet.lockedBalance || 0) - amt
+      Number(actualSponsorWallet.lockedBalance || 0) - amt
     );
-    sponsorWallet.balance = Number(sponsorWallet.balance || 0) + amt;
-    sponsorWallet.totalBalance =
-      Number(sponsorWallet.balance || 0) + Number(sponsorWallet.lockedBalance || 0);
-
-    await sponsorWallet.save({ transaction: t });
+    actualSponsorWallet.balance =
+      Number(actualSponsorWallet.balance || 0) + amt;
+    actualSponsorWallet.totalBalance =
+      Number(actualSponsorWallet.balance || 0) +
+      Number(actualSponsorWallet.lockedBalance || 0);
 
     txn.meta = {
       ...meta,
@@ -274,31 +305,22 @@ async function tryReleasePendingJoinBonusesForReferred({ referredUserId, t }) {
 }
 
 // ✅ when sponsor unlocks -> release all pending join bonuses for their referrals
+// ✅ when sponsor unlocks -> release all pending join bonuses for their referrals
 async function tryReleasePendingJoinBonusesForSponsor({
   sponsorId,
   t,
-  sponsorWallet = null,
+  walletMap,
 }) {
   const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
-  const isUnlockedUser = async (userId) => {
-    const w = await Wallet.findOne({ where: { userId }, transaction: t });
+  const checkUnlocked = async (uid) => {
+    const w = await getWalletFromMap(uid, walletMap, t);
     return !!w?.isUnlocked && Number(w?.totalSpent || 0) >= minSpend;
   };
 
-  // If wallet not passed, fetch it
-  let wallet = sponsorWallet;
-  if (!wallet) {
-    wallet = await Wallet.findOne({
-      where: { userId: sponsorId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-  }
-
+  const wallet = await getWalletFromMap(sponsorId, walletMap, t);
   if (!wallet) return { released: 0 };
 
-  const sponsorOk = isUnlockedUser(sponsorId); // or just check wallet.isUnlocked
   if (!wallet.isUnlocked) return { released: 0 };
 
   const pendingJoinTxns = await WalletTransaction.findAll({
@@ -320,7 +342,7 @@ async function tryReleasePendingJoinBonusesForSponsor({
     const referredUserId = meta.referredUserId;
     if (!referredUserId) continue;
 
-    const referredOk = await isUnlockedUser(referredUserId);
+    const referredOk = await checkUnlocked(referredUserId);
     if (!referredOk) continue;
 
     const amt = Number(txn.amount || 0);
@@ -340,10 +362,6 @@ async function tryReleasePendingJoinBonusesForSponsor({
     await txn.save({ transaction: t });
 
     released += 1;
-  }
-
-  if (released > 0) {
-    await wallet.save({ transaction: t });
   }
 
   return { released };
@@ -652,26 +670,19 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
     let joinBonus = null;
     let sponsorPending = null;
 
+    // A Map to store all wallet instances fetched in this transaction
+    // This ensures only ONE save happens per user at the end.
+    const walletMap = new Map();
+
     // ✅ only on first time DELIVERED
     if (!wasDelivered && next === "DELIVERED") {
       spendInfo = await addSpendAndUnlockIfNeeded({
         userId: order.userId,
         amount: order.totalAmount,
         t,
+        walletMap,
       });
 
-      // ✅ if this user newly unlocked now
-      // if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
-      //   // 1) user unlocked => try pay sponsor join bonus (if sponsor unlocked too)
-      //   joinBonus = await tryPayJoinBonus({ referredUserId: order.userId, t });
-
-      //   // 2) user unlocked => if user is sponsor for others, pay pending
-      //   sponsorPending = await tryPayPendingJoinBonusesForSponsor({
-      //     sponsorId: order.userId,
-      //     t,
-      //   });
-      //     await tryReleasePendingPairBonuses(t);
-      // }
       if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
         // ✅ referred unlocked now => release sponsor pending join bonus
 
@@ -684,24 +695,27 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
         const releasedJoinAsReferred = await tryReleasePendingJoinBonusesForReferred({
           referredUserId: order.userId,
           t,
+          walletMap,
         });
 
         // 2) This user unlocked as a sponsor -> release bonuses in THIS user's wallet
         const releasedJoinAsSponsor = await tryReleasePendingJoinBonusesForSponsor({
           sponsorId: order.userId,
           t,
-          sponsorWallet: spendInfo.wallet, // Pass the already loaded wallet instance
+          walletMap,
         });
 
         // 3) release pending pair bonuses too
-        // Note: tryReleasePendingPairBonuses still fetches wallets internally, 
-        // but it's less likely to conflict if we are careful. 
-        // Ideally it should also be refactored or called with this wallet if applicable.
-        await tryReleasePendingPairBonuses(t);
+        await tryReleasePendingPairBonuses(t, walletMap);
 
         sponsorPending = { releasedJoinAsReferred, releasedJoinAsSponsor };
       }
+    }
 
+    // ✅ FINAL STEP: Save all modified wallets once!
+    for (const wallet of walletMap.values()) {
+      console.log(`[WALLET UPDATE] User ${wallet.userId}: Bal=${wallet.balance}, Locked=${wallet.lockedBalance}`);
+      await wallet.save({ transaction: t });
     }
 
     await t.commit();
