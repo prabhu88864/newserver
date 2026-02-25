@@ -5,6 +5,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sequelize } from "../config/db.js";
+import { Op } from "sequelize";
 
 import User from "../models/User.js";
 import Wallet from "../models/Wallet.js";
