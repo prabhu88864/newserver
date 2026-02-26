@@ -35,22 +35,15 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Ensure paths are absolute relative to this config file (which is in server/config)
-// We want them in server/uploads/
-const baseUploadDir = path.join(__dirname, "..", "uploads");
-
-const productDir = path.join(baseUploadDir, "products");
-const profileDir = path.join(baseUploadDir, "profilePics");
-const categoryDir = path.join(baseUploadDir, "categories");
-const subCategoryDir = path.join(baseUploadDir, "subcategories");
+const productDir = "uploads/products";
+const profileDir = "uploads/profilePics";
+const categoryDir = "uploads/categories";
+const subCategoryDir = "uploads/subcategories";
 
 fs.mkdirSync(categoryDir, { recursive: true });
 fs.mkdirSync(subCategoryDir, { recursive: true });
+
+
 fs.mkdirSync(productDir, { recursive: true });
 fs.mkdirSync(profileDir, { recursive: true });
 
