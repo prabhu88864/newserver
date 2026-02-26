@@ -49,14 +49,20 @@ import subCategoryRoutes from "./routes/subcategories.js";
 
 
 
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config()
 const app = express()
 
 app.use(cors())
 app.use(express.json())
 
-//  sequelize.sync({}).then(() => console.log('MySQL connected'))
-app.use("/uploads", express.static("uploads"));
+// Serve static files from the absolute path of the uploads folder
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* routes */
 app.use('/api/auth', authRoutes);
@@ -126,7 +132,7 @@ User.hasMany(Address, { foreignKey: "userId", as: "addresses", onDelete: "CASCAD
 Address.belongsTo(User, { foreignKey: "userId", as: "user" });
 // order ↔ Adress
 Order.belongsTo(Address, { foreignKey: { name: "addressId", allowNull: true } }); // ✅ important
-Address.hasMany(Order, { foreignKey: { name: "addressId", allowNull: true } }); 
+Address.hasMany(Order, { foreignKey: { name: "addressId", allowNull: true } });
 
 Payment.belongsTo(User, { foreignKey: "userId" });
 Payment.belongsTo(Order, { foreignKey: "orderId" });
