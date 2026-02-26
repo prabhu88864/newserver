@@ -141,6 +141,9 @@ import Category from "../models/Category.js";
 import SubCategory from "../models/SubCategory.js";
 
 
+import optionalAuth from "../middleware/optionalAuth.js";
+
+
 const router = express.Router();
 
 const toNum = (v, def = 0) => {
@@ -189,23 +192,56 @@ const getProducts = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    res.json(products);
+    // ✅ Apply discount based on userType (default: TRAINEE_ENTREPRENEUR)
+    const userType = (req.user?.userType || "TRAINEE_ENTREPRENEUR").toUpperCase();
+
+    const productsWithPrices = products.map(p => {
+      const product = p.toJSON();
+      const price = Number(product.price || 0);
+      let discPercent = 0;
+
+      if (userType === "ENTREPRENEUR") {
+        discPercent = Number(product.entrepreneurDiscount || 0);
+      } else {
+        // Default or Trainee
+        discPercent = Number(product.traineeEntrepreneurDiscount || 0);
+      }
+
+      product.discountedPrice = Number((price - (price * discPercent) / 100).toFixed(2));
+      return product;
+    });
+
+    res.json(productsWithPrices);
   } catch (err) {
     console.error("GET /api/products error:", err);
     res.status(500).json({ msg: "Server error" });
   }
 };
 
-router.get("/", auth, getProducts);
-router.get("/search", auth, getProducts);
+router.get("/", optionalAuth, getProducts);
+router.get("/search", optionalAuth, getProducts);
 
 /* ================= GET SINGLE PRODUCT ================= */
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
-    const product = await Product.findByPk(req.params.id);
-    if (!product || !product.isActive) {
+    const productData = await Product.findByPk(req.params.id);
+    if (!productData || !productData.isActive) {
       return res.status(404).json({ msg: "Product not found" });
     }
+
+    const product = productData.toJSON();
+    const userType = (req.user?.userType || "TRAINEE_ENTREPRENEUR").toUpperCase();
+    const price = Number(product.price || 0);
+    let discPercent = 0;
+
+    if (userType === "ENTREPRENEUR") {
+      discPercent = Number(product.entrepreneurDiscount || 0);
+    } else {
+      discPercent = Number(product.traineeEntrepreneurDiscount || 0);
+    }
+
+    product.discountedPrice = Number((price - (price * discPercent) / 100).toFixed(2));
+
     res.json(product);
   } catch (err) {
     console.error("GET /api/products/:id error:", err);

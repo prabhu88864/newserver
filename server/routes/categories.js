@@ -116,7 +116,7 @@ const toInt = (v, fb = 0) => {
 };
 
 // ✅ GET all (sorted by sortOrder then name)
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const rows = await Category.findAll({
       order: [
@@ -131,7 +131,7 @@ router.get("/", auth, async (req, res) => {
 });
 
 // ✅ GET single
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const row = await Category.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "Category not found" });

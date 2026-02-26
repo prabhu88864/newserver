@@ -16,7 +16,7 @@ const imgPath = (file) => (file ? `/${file.path.replaceAll("\\", "/")}` : null);
  *  - /api/subcategories?categoryName=Medicines
  *  - /api/subcategories (all)
  */
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { categoryId, categoryName } = req.query;
 
@@ -47,7 +47,7 @@ router.get("/", auth, async (req, res) => {
 });
 
 // ✅ GET single
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const row = await SubCategory.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "SubCategory not found" });
@@ -58,7 +58,7 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 // ✅ CREATE (admin) + image (form-data)
-router.post("/", auth,  (req, res) => {
+router.post("/", auth, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
@@ -86,7 +86,7 @@ router.post("/", auth,  (req, res) => {
 });
 
 // ✅ UPDATE (admin) + image optional
-router.put("/:id", auth,  (req, res) => {
+router.put("/:id", auth, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
