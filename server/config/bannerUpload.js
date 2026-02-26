@@ -1,9 +1,9 @@
-// config/bannerUpload.js
-import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { fileURLToPath } from "url";
 
-const dir = "uploads/banners";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dir = path.join(__dirname, "..", "uploads", "banners");
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
 const storage = multer.diskStorage({
