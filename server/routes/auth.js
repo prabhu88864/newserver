@@ -20,6 +20,7 @@ import PairMatch from "../models/PairMatch.js";
 import { getSettingNumber } from "../config/settings.js";
 import { uploadProfilePic } from "../config/upload.js";
 import { createDefaultReferralLinks } from "./referrals.js";
+import { checkAndGrantAwards } from "../config/awardRewards.js";
 
 const router = express.Router();
 
