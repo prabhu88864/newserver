@@ -620,7 +620,7 @@ router.get("/stats", auth, async (req, res) => {
 
 /**
  * ✅ ADMIN: GET USER FULL TREE by userID / name / numericId (NO depth)
- * GET /api/binary/admin/tree?q=SUN000005
+ * GET /api/binary/admin/tree?q=S000005
  * GET /api/binary/admin/tree?q=prabhu
  * GET /api/binary/admin/tree?q=5
  */
