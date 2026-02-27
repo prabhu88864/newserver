@@ -16,6 +16,8 @@ export default async function optionalAuth(req, res, next) {
             attributes: ["id", "role", "userType", "email", "name"],
         });
 
+
+
         if (!user) {
             req.user = null;
         } else {
