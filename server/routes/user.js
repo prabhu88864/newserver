@@ -160,7 +160,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
-import { uploadProfilePic } from "../config/upload.js";
+import { uploadProfilePic, getPublicPath } from "../config/upload.js";
 
 const router = express.Router();
 /**
@@ -351,7 +351,7 @@ router.put("/:id", auth, (req, res) => {
 
       // profilePic update (only if file uploaded)
       if (req.file) {
-        const profilePic = `/${req.file.path.split("\\").join("/")}`;
+        const profilePic = getPublicPath(req.file);
         user.profilePic = profilePic;
       }
 

@@ -3,11 +3,11 @@ import Category from "../models/Category.js";
 import SubCategory from "../models/SubCategory.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
-import { uploadSubCategoryImage } from "../config/upload.js";
+import { uploadSubCategoryImage, getPublicPath } from "../config/upload.js";
 
 const router = express.Router();
 
-const imgPath = (file) => (file ? `/${file.path.replaceAll("\\", "/")}` : null);
+const imgPath = (file) => getPublicPath(file);
 
 /**
  * ✅ GET subcategories

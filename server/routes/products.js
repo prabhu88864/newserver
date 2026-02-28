@@ -133,7 +133,7 @@
 // export default router;
 import express from "express";
 import Product from "../models/Product.js";
-import { uploadProductImages } from "../config/upload.js";
+import { uploadProductImages, getPublicPath } from "../config/upload.js";
 import { Op } from "sequelize";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
@@ -256,7 +256,7 @@ router.post("/", auth, (req, res) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
 
-      const images = (req.files || []).map((f) => `/${f.path.replaceAll("\\", "/")}`);
+      const images = (req.files || []).map((f) => getPublicPath(f));
 
       const product = await Product.create({
         ...req.body,
@@ -292,7 +292,7 @@ router.put("/:id", auth, isAdmin, (req, res) => {
       const product = await Product.findByPk(req.params.id);
       if (!product) return res.status(404).json({ msg: "Not found" });
 
-      const newImages = (req.files || []).map((f) => `/${f.path.replaceAll("\\", "/")}`);
+      const newImages = (req.files || []).map((f) => getPublicPath(f));
 
       await product.update({
         ...req.body,
