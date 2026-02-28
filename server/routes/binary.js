@@ -582,9 +582,13 @@ router.get("/stats", auth, async (req, res) => {
 
     if (!rootNode) return res.status(404).json({ msg: "Binary tree not initialized" });
 
-    const [leftUserIds, rightUserIds] = await Promise.all([
+    const [leftUserIds, rightUserIds, directReferrals] = await Promise.all([
       collectSubtreeUserIds(rootNode.leftChildId),
       collectSubtreeUserIds(rootNode.rightChildId),
+      User.findAll({
+        where: { sponsorId: rootUserId },
+        attributes: ["id", "userID", "userType", "name"],
+      }),
     ]);
 
     const leftSet = Array.from(new Set(leftUserIds));
@@ -606,10 +610,12 @@ router.get("/stats", auth, async (req, res) => {
       left: countByUserType(leftUsers),
       right: countByUserType(rightUsers),
       overall: countByUserType(overallUsers),
+      direct: countByUserType(directReferrals),
       meta: {
         leftCount: leftUsers.length,
         rightCount: rightUsers.length,
         overallCount: overallUsers.length,
+        directCount: directReferrals.length,
       },
     });
   } catch (err) {
