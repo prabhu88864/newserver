@@ -128,4 +128,71 @@ router.get("/daily-income", auth, async (req, res) => {
   }
 });
 
+// ✅ Helper for different time periods
+function getRangeForPeriod(period, zone = "Asia/Kolkata") {
+  const now = DateTime.now().setZone(zone);
+  let start;
+  let end = now.plus({ days: 1 }).startOf("day").toUTC().toJSDate();
+
+  if (period === "day") {
+    start = now.startOf("day").toUTC().toJSDate();
+  } else if (period === "week") {
+    // Luxon week starts on Monday by default
+    start = now.startOf("week").toUTC().toJSDate();
+  } else if (period === "month") {
+    start = now.startOf("month").toUTC().toJSDate();
+  } else if (period === "year") {
+    start = now.startOf("year").toUTC().toJSDate();
+  } else {
+    // default to day
+    start = now.startOf("day").toUTC().toJSDate();
+  }
+
+  return { start, end };
+}
+
+async function getStatsForRange(userId, start, end) {
+  const txns = await WalletTransaction.findAll({
+    where: {
+      walletId: (await Wallet.findOne({ where: { userId }, attributes: ["id"] }))?.id,
+      type: "CREDIT",
+      reason: { [Op.in]: ["PAIR_BONUS", "REFERRAL_JOIN_BONUS"] },
+      createdAt: { [Op.gte]: start, [Op.lt]: end },
+    },
+  });
+
+  const credited = txns.filter((t) => !isPendingTxn(t));
+  const pending = txns.filter((t) => isPendingTxn(t));
+
+  return {
+    credited: Number(sumAmounts(credited).toFixed(2)),
+    pending: Number(sumAmounts(pending).toFixed(2)),
+    total: Number(sumAmounts(txns).toFixed(2)),
+    count: txns.length,
+  };
+}
+
+// ✅ GET /api/reports/income-summary
+router.get("/income-summary", auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const periods = ["day", "week", "month", "year"];
+    const results = {};
+
+    for (const p of periods) {
+      const { start, end } = getRangeForPeriod(p);
+      results[p] = await getStatsForRange(userId, start, end);
+    }
+
+    return res.json({
+      userId,
+      timezone: "Asia/Kolkata",
+      summary: results,
+    });
+  } catch (err) {
+    console.error("INCOME SUMMARY ERROR =>", err);
+    return res.status(500).json({ msg: "Failed to get income summary", err: err.message });
+  }
+});
+
 export default router;
