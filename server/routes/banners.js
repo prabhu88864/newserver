@@ -4,7 +4,7 @@ import { Op } from "sequelize";
 import Banner from "../models/Banner.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
-import { uploadBannerImage } from "../config/bannerUpload.js";
+import { uploadBannerImage, getPublicPath } from "../config/upload.js";
 
 const router = express.Router();
 
@@ -85,7 +85,7 @@ router.post("/", auth, isAdmin, (req, res) => {
       if (err) return res.status(400).json({ msg: err.message });
       if (!req.file) return res.status(400).json({ msg: "Image required" });
 
-      const image = `/${req.file.path.replaceAll("\\", "/")}`;
+      const image = getPublicPath(req.file);
 
       const banner = await Banner.create({
         title: req.body.title || "",
@@ -132,7 +132,7 @@ router.put("/:id", auth, isAdmin, (req, res) => {
         endsAt: req.body.endsAt ? new Date(req.body.endsAt) : banner.endsAt,
       };
 
-      if (req.file) patch.image = `/${req.file.path.replaceAll("\\", "/")}`;
+      if (req.file) patch.image = getPublicPath(req.file);
 
       await banner.update(patch);
       res.json(banner);

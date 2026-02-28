@@ -129,14 +129,26 @@ const ROOT =
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
 
-export const UPLOAD_ROOT = ROOT; // ✅ export for server.js static
+export const UPLOAD_ROOT = ROOT;
+
+const getPublicPath = (file) => {
+  if (!file || !file.path) return null;
+  // Hostinger/Linux uses forward slash, but node's path.relative handles it.
+  // We force forward slashes for the URL stored in DB.
+  const relative = path.relative(ROOT, file.path).split(path.sep).join("/");
+  return `/uploads/${relative}`;
+};
+
+export { getPublicPath };
+
 
 const productDir = path.join(ROOT, "products");
 const profileDir = path.join(ROOT, "profilePics");
 const categoryDir = path.join(ROOT, "categories");
 const subCategoryDir = path.join(ROOT, "subcategories");
+const bannerDir = path.join(ROOT, "banners");
 
-[productDir, profileDir, categoryDir, subCategoryDir].forEach(ensureDir);
+[productDir, profileDir, categoryDir, subCategoryDir, bannerDir].forEach(ensureDir);
 
 const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -178,4 +190,13 @@ export const uploadSubCategoryImage = multer({
   storage: makeStorage(subCategoryDir),
   fileFilter,
   limits: { fileSize: 2 * 1024 * 1024 },
+}).single("image");
+
+export const uploadBannerImage = multer({
+  storage: makeStorage(bannerDir),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) return cb(null, true);
+    cb(new Error("Only images are allowed"));
+  },
+  limits: { fileSize: 3 * 1024 * 1024 },
 }).single("image");
