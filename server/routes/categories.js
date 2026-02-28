@@ -104,12 +104,12 @@ import Category from "../models/Category.js";
 import SubCategory from "../models/SubCategory.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
-import { uploadCategoryImage } from "../config/upload.js";
+import { uploadCategoryImage, getPublicPath } from "../config/upload.js";
 import { sequelize } from "../config/db.js";
 
 const router = express.Router();
 
-const imgPath = (file) => (file ? `/${file.path.replaceAll("\\", "/")}` : null);
+const imgPath = (file) => getPublicPath(file);
 const toInt = (v, fb = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fb;
