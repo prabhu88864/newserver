@@ -20,7 +20,7 @@ const Product = sequelize.define(
     categoryName: { type: DataTypes.STRING(120), allowNull: false },
     subCategoryName: { type: DataTypes.STRING(120), allowNull: true },
 
-   
+
 
     description: { type: DataTypes.TEXT, allowNull: true },
 
@@ -63,7 +63,17 @@ const Product = sequelize.define(
     // 0/1 active for hide/show product
     isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [
+      { fields: ["isActive"] },
+      { fields: ["categoryName"] },
+      { fields: ["subCategoryName"] },
+      { fields: ["featured"] },
+      { fields: ["price"] },
+      { fields: ["createdAt"] },
+    ],
+  }
 );
 
 export default Product;

@@ -148,15 +148,25 @@ const router = express.Router();
 
 const toNum = (v, def = 0) => {
   if (v === undefined || v === null || v === "") return def;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? def : n;
 };
 
 /* ================= GET ALL / SEARCH PRODUCTS ================= */
 // Supports: GET /api/products AND /api/products/search
 const getProducts = async (req, res) => {
   try {
-    const { search, serch, category, subCategory, subCategoryId, badge, featured, inStock } = req.query;
+    let { search, serch, category, subCategory, subCategoryId, badge, featured, inStock, page, limit, linit } = req.query;
+
+    // Use 'linit' as fallback if 'limit' is missing (to handle potential typo)
+    limit = limit || linit;
+
+    // Pagination defaults
+    page = Math.max(1, toNum(page, 1));
+    limit = Math.max(1, toNum(limit, 12));
+    const offset = (page - 1) * limit;
+
+    console.log("DEBUG Products API:", { page, limit, offset, query: req.query });
 
     const where = { isActive: true };
 
@@ -179,7 +189,7 @@ const getProducts = async (req, res) => {
       if (subCat) {
         where.subCategoryName = subCat.name;
       } else {
-        return res.json([]);
+        return res.json({ products: [], totalItems: 0, totalPages: 0, currentPage: page });
       }
     }
 
@@ -187,23 +197,30 @@ const getProducts = async (req, res) => {
     if (featured === "true") where.featured = true;
     if (inStock === "true") where.stockQty = { [Op.gt]: 0 };
 
-    const products = await Product.findAll({
+    // Optimize: Fetch only necessary fields for list view
+    const { count, rows: products } = await Product.findAndCountAll({
       where,
+      attributes: [
+        "id", "name", "brand", "categoryName", "subCategoryName",
+        "price", "mrp", "stockQty", "featured", "badge", "images",
+        "entrepreneurDiscount", "traineeEntrepreneurDiscount", "isActive"
+      ],
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
     // ✅ Apply discount based on userType (default: TRAINEE_ENTREPRENEUR)
     const userType = (req.user?.userType || "TRAINEE_ENTREPRENEUR").toUpperCase();
 
     const productsWithPrices = products.map(p => {
-      const product = p.toJSON();
+      const product = p.get({ plain: true });
       const price = Number(product.price || 0);
       let discPercent = 0;
 
       if (userType === "ENTREPRENEUR") {
         discPercent = Number(product.entrepreneurDiscount || 0);
       } else {
-        // Default or Trainee
         discPercent = Number(product.traineeEntrepreneurDiscount || 0);
       }
 
@@ -211,7 +228,13 @@ const getProducts = async (req, res) => {
       return product;
     });
 
-    res.json(productsWithPrices);
+    res.json({
+      products: productsWithPrices,
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      limit
+    });
   } catch (err) {
     console.error("GET /api/products error:", err);
     res.status(500).json({ msg: "Server error" });
