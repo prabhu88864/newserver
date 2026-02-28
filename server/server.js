@@ -58,7 +58,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, ".env") });
+
 const app = express()
 
 app.use(cors())
@@ -66,7 +66,6 @@ app.use(express.json())
 
 
 // app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT || path.join(__dirname, "uploads");
 app.use("/uploads", express.static(UPLOAD_ROOT));
 
 /* routes */
