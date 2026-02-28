@@ -3,6 +3,7 @@ import auth from "../middleware/auth.js";
 import { Op } from "sequelize";
 import { DateTime } from "luxon";
 
+import User from "../models/User.js"; // ✅ ADD THIS
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import PairMatch from "../models/PairMatch.js";
@@ -80,7 +81,9 @@ router.get("/referral-summary", auth, async (req, res) => {
     });
   } catch (err) {
     console.error("REFERRAL SUMMARY ERROR =>", err);
-    return res.status(500).json({ msg: "Failed to get referral summary", err: err.message });
+    return res
+      .status(500)
+      .json({ msg: "Failed to get referral summary", err: err.message });
   }
 });
 
@@ -135,8 +138,8 @@ router.get("/daily-income", auth, async (req, res) => {
       date: istDate,
       timezone: zone,
 
-      pairsMatched,            // ✅ today matched pairs (<= 17)
-      flushedPairs,            // ✅ today flushed pairs count (no carry forward)
+      pairsMatched,
+      flushedPairs,
 
       pairIncome: {
         credited: Number(sumAmounts(pairCredited).toFixed(2)),
@@ -153,12 +156,15 @@ router.get("/daily-income", auth, async (req, res) => {
       },
 
       totals: {
-        credited: Number((sumAmounts(pairCredited) + sumAmounts(joinCredited)).toFixed(2)),
-        pending: Number((sumAmounts(pairPending) + sumAmounts(joinPending)).toFixed(2)),
+        credited: Number(
+          (sumAmounts(pairCredited) + sumAmounts(joinCredited)).toFixed(2)
+        ),
+        pending: Number(
+          (sumAmounts(pairPending) + sumAmounts(joinPending)).toFixed(2)
+        ),
         grandTotal: Number((sumAmounts(pairTxns) + sumAmounts(joinTxns)).toFixed(2)),
       },
 
-      // optional: send small lists for UI (not heavy)
       recent: {
         pairTxns: pairTxns.slice(0, 20).map((t) => ({
           id: t.id,
@@ -180,7 +186,9 @@ router.get("/daily-income", auth, async (req, res) => {
     return res.json(report);
   } catch (err) {
     console.error("DAILY INCOME REPORT ERROR =>", err);
-    return res.status(500).json({ msg: "Failed to get daily report", err: err.message });
+    return res
+      .status(500)
+      .json({ msg: "Failed to get daily report", err: err.message });
   }
 });
 
