@@ -117,33 +117,36 @@
 //   limits: { fileSize: 2 * 1024 * 1024 },
 // }).single("image");
 
-
+import "dotenv/config"; // ✅ IMPORTANT (loads .env before using process.env)
 
 import multer from "multer";
 import fs from "fs";
 import path from "path";
 
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT || path.resolve("uploads");
-// production: /home/u579351912/persistent_uploads
-// local: <project>/uploads
+const ROOT =
+  (process.env.UPLOAD_ROOT && process.env.UPLOAD_ROOT.trim()) ||
+  path.join(process.env.HOME || process.cwd(), "persistent_uploads"); // fallback
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
 
-const productDir = path.join(UPLOAD_ROOT, "products");
-const profileDir = path.join(UPLOAD_ROOT, "profilePics");
-const categoryDir = path.join(UPLOAD_ROOT, "categories");
-const subCategoryDir = path.join(UPLOAD_ROOT, "subcategories");
+export const UPLOAD_ROOT = ROOT; // ✅ export for server.js static
+
+const productDir = path.join(ROOT, "products");
+const profileDir = path.join(ROOT, "profilePics");
+const categoryDir = path.join(ROOT, "categories");
+const subCategoryDir = path.join(ROOT, "subcategories");
 
 [productDir, profileDir, categoryDir, subCategoryDir].forEach(ensureDir);
 
+const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 const fileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp"];
-  if (!allowed.includes(file.mimetype)) return cb(new Error("Only jpg, png, webp allowed"));
+  if (!allowed.has(file.mimetype)) return cb(new Error("Only jpg, png, webp allowed"));
   cb(null, true);
 };
 
 const filename = (req, file, cb) => {
-  const ext = path.extname(file.originalname);
+  const ext = path.extname(file.originalname || "").toLowerCase();
   cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
 };
 
