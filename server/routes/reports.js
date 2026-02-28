@@ -152,14 +152,22 @@ function getRangeForPeriod(period, zone = "Asia/Kolkata") {
 }
 
 async function getStatsForRange(userId, start, end) {
-  const txns = await WalletTransaction.findAll({
-    where: {
-      walletId: (await Wallet.findOne({ where: { userId }, attributes: ["id"] }))?.id,
-      type: "CREDIT",
-      reason: { [Op.in]: ["PAIR_BONUS", "REFERRAL_JOIN_BONUS"] },
-      createdAt: { [Op.gte]: start, [Op.lt]: end },
-    },
-  });
+  const [txns, referralCount] = await Promise.all([
+    WalletTransaction.findAll({
+      where: {
+        walletId: (await Wallet.findOne({ where: { userId }, attributes: ["id"] }))?.id,
+        type: "CREDIT",
+        reason: { [Op.in]: ["PAIR_BONUS", "REFERRAL_JOIN_BONUS"] },
+        createdAt: { [Op.gte]: start, [Op.lt]: end },
+      },
+    }),
+    User.count({
+      where: {
+        sponsorId: userId,
+        createdAt: { [Op.gte]: start, [Op.lt]: end },
+      },
+    }),
+  ]);
 
   const credited = txns.filter((t) => !isPendingTxn(t));
   const pending = txns.filter((t) => isPendingTxn(t));
@@ -168,7 +176,8 @@ async function getStatsForRange(userId, start, end) {
     credited: Number(sumAmounts(credited).toFixed(2)),
     pending: Number(sumAmounts(pending).toFixed(2)),
     total: Number(sumAmounts(txns).toFixed(2)),
-    count: txns.length,
+    incomeCount: txns.length,
+    referralCount,
   };
 }
 
