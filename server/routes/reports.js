@@ -7,6 +7,7 @@ import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import PairMatch from "../models/PairMatch.js";
 import PairPending from "../models/PairPending.js";
+import User from "../models/User.js";
 
 const router = express.Router();
 
@@ -137,25 +138,31 @@ function getRangeForPeriod(period, zone = "Asia/Kolkata") {
   if (period === "day") {
     start = now.startOf("day").toUTC().toJSDate();
   } else if (period === "week") {
-    // Luxon week starts on Monday by default
     start = now.startOf("week").toUTC().toJSDate();
   } else if (period === "month") {
     start = now.startOf("month").toUTC().toJSDate();
   } else if (period === "year") {
     start = now.startOf("year").toUTC().toJSDate();
   } else {
-    // default to day
     start = now.startOf("day").toUTC().toJSDate();
   }
 
   return { start, end };
 }
 
+/**
+ * ✅ FETCH INCOME STATS + REFERRAL COUNT FOR RANGE
+ */
 async function getStatsForRange(userId, start, end) {
+  const wallet = await Wallet.findOne({ where: { userId }, attributes: ["id"] });
+  if (!wallet) {
+    return { credited: 0, pending: 0, total: 0, incomeCount: 0, referralCount: 0 };
+  }
+
   const [txns, referralCount] = await Promise.all([
     WalletTransaction.findAll({
       where: {
-        walletId: (await Wallet.findOne({ where: { userId }, attributes: ["id"] }))?.id,
+        walletId: wallet.id,
         type: "CREDIT",
         reason: { [Op.in]: ["PAIR_BONUS", "REFERRAL_JOIN_BONUS"] },
         createdAt: { [Op.gte]: start, [Op.lt]: end },
@@ -177,13 +184,15 @@ async function getStatsForRange(userId, start, end) {
     pending: Number(sumAmounts(pending).toFixed(2)),
     total: Number(sumAmounts(txns).toFixed(2)),
     incomeCount: txns.length,
-    referralCount,
+    referralCount: referralCount || 0,
   };
 }
 
 // ✅ GET /api/reports/income-summary
 router.get("/income-summary", auth, async (req, res) => {
   try {
+    console.log("EXEC: /api/reports/income-summary for UID:", req.user.id);
+
     const userId = req.user.id;
     const periods = ["day", "week", "month", "year"];
     const results = {};
