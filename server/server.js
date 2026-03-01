@@ -159,6 +159,9 @@ User.hasMany(RankAchievement, { foreignKey: "userId" });
 Category.hasMany(SubCategory, { foreignKey: "categoryId", as: "subCategories" });
 SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
+User.belongsTo(User, { foreignKey: "sponsorId", as: "sponsor" });
+User.hasMany(User, { foreignKey: "sponsorId", as: "referrals" });
+
 (async () => {
   try {
     await sequelize.authenticate();

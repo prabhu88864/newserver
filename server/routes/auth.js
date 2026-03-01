@@ -21,6 +21,11 @@ import { getSettingNumber } from "../config/settings.js";
 import { uploadProfilePic } from "../config/upload.js";
 import { createDefaultReferralLinks } from "./referrals.js";
 import { checkAndGrantAwards } from "../config/awardRewards.js";
+import auth from "../middleware/auth.js";
+import Address from "../models/Address.js";
+import Order from "../models/Order.js";
+import OrderItem from "../models/OrderItem.js";
+import Product from "../models/Product.js";
 
 const router = express.Router();
 
@@ -887,6 +892,186 @@ router.post("/register", (req, res) => {
 });
 
 
+// ========================= PLACEMENT REGISTER =========================
+// POST /api/auth/placement-register
+// Body: { name, email, phone, password, parentId, position, userType, ... }
+router.post("/placement-register", auth, (req, res) => {
+  uploadProfilePic(req, res, async (err) => {
+    const t = await sequelize.transaction();
+
+    try {
+      if (err) return res.status(400).json({ msg: err.message });
+
+      const { name, email, phone, password, parentId, position } = req.body;
+      const sponsorId = req.user.id; // The logged-in user is the sponsor
+
+      const userType = req.body.userType;
+      const { bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId } = req.body;
+      const profilePic = req.file
+        ? `/${req.file.path.split("\\").join("/")}`
+        : null;
+
+      if (!name || !email || !phone || !password || !parentId || !position) {
+        throw new Error("name, email, phone, password, parentId, and position are required");
+      }
+
+      if (!["LEFT", "RIGHT"].includes(position.toUpperCase())) {
+        throw new Error("Invalid position. Must be LEFT or RIGHT");
+      }
+
+      const pos = position.toUpperCase();
+
+      // 1. Find the actual placement parent using spillover logic (go down the selected position until empty)
+      const parentUser = await User.findOne({
+        where: { userID: parentId },
+        transaction: t,
+      });
+
+      if (!parentUser) {
+        throw new Error("Placement parent user not found");
+      }
+
+      // Use the existing findPlacementParent helper for spillover
+      const placedParent = await findPlacementParent({
+        sponsorUserId: parentUser.id,
+        position: pos,
+        t,
+      });
+
+      // 2. Prevent duplicates
+      const existsEmail = await User.findOne({ where: { email }, transaction: t });
+      if (existsEmail) throw new Error("Email already exists");
+
+      const existsPhone = await User.findOne({ where: { phone }, transaction: t });
+      if (existsPhone) throw new Error("Phone already exists");
+
+      // 3. Unique referralCode
+      let myCode = generateReferralCode();
+      while (
+        await User.findOne({ where: { referralCode: myCode }, transaction: t })
+      ) {
+        myCode = generateReferralCode();
+      }
+
+      // 4. Create user
+      const user = await User.create(
+        {
+          name,
+          email,
+          phone,
+          password,
+          referralCode: myCode,
+          role: "USER",
+          sponsorId,
+          ...(userType ? { userType } : {}),
+          ...(profilePic ? { profilePic } : {}),
+          ...(bankAccountNumber ? { bankAccountNumber } : {}),
+          ...(ifscCode ? { ifscCode } : {}),
+          ...(accountHolderName ? { accountHolderName } : {}),
+          ...(panNumber ? { panNumber } : {}),
+          ...(upiId ? { upiId } : {}),
+        },
+        { transaction: t }
+      );
+
+      // 5. Create wallet
+      await Wallet.create(
+        {
+          userId: user.id,
+          balance: 0,
+          lockedBalance: 0,
+          totalBalance: 0,
+          totalSpent: 0,
+          isUnlocked: false,
+        },
+        { transaction: t }
+      );
+
+      // 6. Create binary node and link to parent
+      await BinaryNode.create(
+        {
+          userId: user.id,
+          userPkId: user.userID,
+          userType: user.userType || userType || null,
+          joiningDate: new Date(),
+          parentId: placedParent.userId,
+          position: pos,
+          leftChildId: null,
+          rightChildId: null,
+        },
+        { transaction: t }
+      );
+
+      // Link parent to this new child
+      if (pos === "LEFT") placedParent.leftChildId = user.id;
+      else placedParent.rightChildId = user.id;
+      await placedParent.save({ transaction: t });
+
+      // 7. Create Referral record
+      const refRow = await Referral.create(
+        {
+          sponsorId: sponsorId,
+          referredUserId: user.id,
+          position: pos,
+          joinBonusPaid: false,
+        },
+        { transaction: t }
+      );
+
+      // 8. Auto-generate referral links
+      await createDefaultReferralLinks(user.id, t);
+
+      // 9. Credit JOIN BONUS to sponsor
+      const JOIN_BONUS = (await getSettingNumber("JOIN_BONUS", t)) || 5000;
+      const sponsor = await User.findByPk(sponsorId, { transaction: t });
+
+      const txn = await creditWallet({
+        userId: sponsorId,
+        amount: JOIN_BONUS,
+        reason: "REFERRAL_JOIN_BONUS",
+        meta: {
+          referredUserId: user.id,
+          referredName: user.name,
+          placedUnderUserId: placedParent.userId,
+          placedPosition: pos,
+        },
+        t,
+      });
+
+      if (txn?.meta?.pending !== true) {
+        refRow.joinBonusPaid = true;
+        await refRow.save({ transaction: t });
+      }
+
+      // 10. Update upline counts and PAIR BONUS
+      await updateUplineCountsAndBonuses({
+        startParentUserId: placedParent.userId,
+        placedPosition: pos,
+        newlyJoinedUserId: user.id,
+        t,
+      });
+
+      await t.commit();
+
+      return res.json({
+        msg: "User registered and placed successfully",
+        user: {
+          id: user.id,
+          name: user.name,
+          userID: user.userID,
+          email: user.email,
+          phone: user.phone,
+          referralCode: user.referralCode,
+        },
+      });
+    } catch (err) {
+      await t.rollback();
+      return res.status(400).json({ msg: err.message });
+    }
+  });
+});
+
+
 // ========================= LOGIN =========================
 // router.post("/login", async (req, res) => {
 //   try {
@@ -968,6 +1153,125 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ msg: err.message });
+  }
+});
+
+// ✅ GET /api/auth/welcome-letter
+// Returns data for the welcome letter of the logged-in user
+router.get("/welcome-letter", auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Fetch User details (including sponsor)
+    const user = await User.findByPk(userId, {
+      attributes: ["id", "userID", "name", "createdAt", "sponsorId"],
+      include: [
+        {
+          model: User,
+          as: "sponsor",
+          attributes: ["userID", "name"],
+        },
+      ],
+    });
+
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    // 2. Fetch Any Active Address (prefer default)
+    let address = await Address.findOne({
+      where: { userId, isDefault: true, isActive: true },
+      attributes: ["house", "area", "pincode"],
+    });
+
+    if (!address) {
+      address = await Address.findOne({
+        where: { userId, isActive: true },
+        attributes: ["house", "area", "pincode"],
+        order: [["createdAt", "DESC"]],
+      });
+    }
+
+    // 3. Fetch Binary Position
+    const binaryNode = await BinaryNode.findOne({
+      where: { userId },
+      attributes: ["position"],
+    });
+
+    // 4. Fetch Latest Paid Product
+    // Look for the latest PAID order to find the product selected
+    const latestOrder = await Order.findOne({
+      where: { userId, paymentStatus: "SUCCESS" },
+      order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: OrderItem,
+          include: [{ model: Product, attributes: ["name"] }],
+        },
+      ],
+    });
+
+    let productName = "N/A";
+    if (latestOrder && latestOrder.OrderItems && latestOrder.OrderItems.length > 0) {
+      productName = latestOrder.OrderItems[0].Product?.name || "N/A";
+    }
+
+    // 5. Format response
+    const formatDate = (date) => {
+      if (!date) return "N/A";
+      const d = new Date(date);
+      const day = String(d.getDate()).padStart(2, "0");
+      const months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const seconds = String(d.getSeconds()).padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      return `${day}-${month}-${year} ${hours}:${minutes}:${seconds} ${ampm}`;
+    };
+
+    let introducer = "N/A";
+    let introducerName = "N/A";
+
+    if (user.sponsor) {
+      introducer = user.sponsor.userID;
+      introducerName = user.sponsor.name;
+    } else {
+      // Fallback: check Referral table
+      const refRecord = await Referral.findOne({
+        where: { referredUserId: userId },
+        include: [{ model: User, as: "sponsor", attributes: ["userID", "name"] }],
+      });
+      if (refRecord && refRecord.sponsor) {
+        introducer = refRecord.sponsor.userID;
+        introducerName = refRecord.sponsor.name;
+      }
+    }
+
+    const welcomeData = {
+      userName: user.userID,
+      dateOfJoining: formatDate(user.createdAt),
+      name: user.name,
+      address: address ? `${address.house}, ${address.area}` : "N/A",
+      city: "N/A",
+      district: "N/A",
+      state: "N/A",
+      country: "India",
+      pinCode: address ? address.pincode : "N/A",
+      introducer,
+      introducerName,
+      placedIn: binaryNode ? (binaryNode.position === "LEFT" ? "L" : "R") : "N/A",
+      productSelected: productName,
+    };
+
+    return res.json(welcomeData);
+  } catch (err) {
+    console.error("GET /welcome-letter error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 });
 
