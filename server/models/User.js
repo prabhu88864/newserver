@@ -38,6 +38,22 @@ const User = sequelize.define("User", {
   accountHolderName: { type: DataTypes.STRING, allowNull: true },
   panNumber: { type: DataTypes.STRING, allowNull: true },
   upiId: { type: DataTypes.STRING, allowNull: true },
+
+  gender: {
+    type: DataTypes.ENUM("MALE", "FEMALE", "OTHER"),
+    allowNull: true,
+  },
+  dateOfBirth: { type: DataTypes.DATEONLY, allowNull: true },
+  activationDate: { type: DataTypes.DATE, allowNull: true },
+
+  bankPhoto: { type: DataTypes.STRING, allowNull: true },
+  panPhoto: { type: DataTypes.STRING, allowNull: true },
+  aadharPhoto: { type: DataTypes.STRING, allowNull: true },
+
+  bankName: { type: DataTypes.STRING, allowNull: true },
+  bankBranch: { type: DataTypes.STRING, allowNull: true },
+  bankAccountType: { type: DataTypes.STRING, allowNull: true },
+  adharNumber: { type: DataTypes.STRING, allowNull: true },
 });
 
 const generateNumericUserID = () => {

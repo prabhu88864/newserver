@@ -469,197 +469,9 @@ async function updateUplineCountsAndBonuses({
   }
 }
 
-// ========================= REGISTER =========================
-// POST /api/auth/register
-// Body: { name,email,phone,password, referralCode?: "<link-code>", role?: "USER"|"ADMIN" }
-// router.post("/register", async (req, res) => {
-//   const { name, email, phone, password } = req.body;
-//   const referralCode = req.body.referralCode;
 
-//   const t = await sequelize.transaction();
-//   try {
-//     if (!name || !email || !phone || !password) {
-//       throw new Error("name,email,phone,password required");
-//     }
-
-//     // prevent duplicates
-//     const existsEmail = await User.findOne({ where: { email }, transaction: t });
-//     if (existsEmail) throw new Error("Email already exists");
-
-//     const existsPhone = await User.findOne({ where: { phone }, transaction: t });
-//     if (existsPhone) throw new Error("Phone already exists");
-
-//     // unique referralCode
-//     let myCode = generateReferralCode();
-//     while (
-//       await User.findOne({ where: { referralCode: myCode }, transaction: t })
-//     ) {
-//       myCode = generateReferralCode();
-//     }
-
-//     // ✅ ROLE LOGIC (DIRECT):
-//     const requestedRole = String(req.body.role || "USER").toUpperCase();
-//     const roleToSave = requestedRole === "ADMIN" ? "ADMIN" : "USER";
-
-//     // create user
-//     const user = await User.create(
-//       { name, email, phone, password, referralCode: myCode, role: roleToSave },
-//       { transaction: t }
-//     );
-
-//     // create wallet
-//    await Wallet.create(
-//   {
-//     userId: user.id,
-//     balance: 0,
-//     lockedBalance: 0,
-//     totalBalance: 0,
-//     totalSpent: 0,
-//     isUnlocked: false,
-//   },
-//   { transaction: t }
-// );
-
-
-//     // create binary node
-//     await BinaryNode.create(
-//       {
-//         userId: user.id,
-//         parentId: null,
-//         position: null,
-//         leftChildId: null,
-//         rightChildId: null,
-//       },
-//       { transaction: t }
-//     );
-
-//     // ✅ ADMIN register: no referral logic needed (optional)
-//     // If you still want ADMIN to join in tree using referralCode, remove this if-block.
-//     if (roleToSave === "ADMIN") {
-//       await t.commit();
-//       const token = signToken(user.id);
-//       return res.json({
-//         msg: "Registered",
-//         token,
-//         user: {
-//           id: user.id,
-//           name: user.name,
-//           role: user.role,
-//           email: user.email,
-//           phone: user.phone,
-//           referralCode: user.referralCode,
-//         },
-//       });
-//     }
-
-//     // ========================= APPLY REFERRAL (SPILLOVER) =========================
-//     if (referralCode) {
-//       const link = await ReferralLink.findOne({
-//         where: { code: referralCode, isActive: true },
-//         transaction: t,
-//         lock: t.LOCK.UPDATE,
-//       });
-//       if (!link) throw new Error("Invalid referral code");
-
-//       const sponsor = await User.findByPk(link.sponsorId, {
-//         transaction: t,
-//         lock: t.LOCK.UPDATE,
-//       });
-//       if (!sponsor) throw new Error("Sponsor not found");
-
-//       const pos = String(link.position || "").toUpperCase();
-//       if (!["LEFT", "RIGHT"].includes(pos))
-//         throw new Error("Invalid referral position");
-
-//       // direct sponsor
-//       user.sponsorId = sponsor.id;
-//       await user.save({ transaction: t });
-
-//       await ensureNode(sponsor.id, t);
-
-//       const placedParent = await findPlacementParent({
-//         sponsorUserId: sponsor.id,
-//         position: pos,
-//         t,
-//       });
-
-//       const refRow = await Referral.create(
-//         {
-//           sponsorId: sponsor.id,
-//           referredUserId: user.id,
-//           position: pos,
-//           joinBonusPaid: false,
-//         },
-//         { transaction: t }
-//       );
-
-//       const myNode = await BinaryNode.findOne({
-//         where: { userId: user.id },
-//         transaction: t,
-//         lock: t.LOCK.UPDATE,
-//       });
-
-//       myNode.parentId = placedParent.userId;
-//       myNode.position = pos;
-//       await myNode.save({ transaction: t });
-
-//       if (pos === "LEFT") placedParent.leftChildId = user.id;
-//       else placedParent.rightChildId = user.id;
-//       await placedParent.save({ transaction: t });
-
-//       // ✅ JOIN BONUS (pending until sponsor + referred unlock)
-//       if (!refRow.joinBonusPaid) {
-//          const JOIN_BONUS = await getSettingNumber("JOIN_BONUS", t) || 5000;
-//         const txn = await creditWallet({
-//           userId: sponsor.id,
-//           amount: JOIN_BONUS,
-//           reason: "REFERRAL_JOIN_BONUS",
-//           meta: {
-//             referredUserId: user.id,
-//             referredName: user.name,
-//             placedUnderUserId: placedParent.userId,
-//             placedPosition: pos,
-//           },
-//           t,
-//         });
-
-//         if (txn?.meta?.pending !== true) {
-//           refRow.joinBonusPaid = true;
-//           await refRow.save({ transaction: t });
-//         }
-//       }
-
-//       // ✅ PAIR BONUS (pending until upline + left + right unlock)
-//       await updateUplineCountsAndBonuses({
-//         startParentUserId: placedParent.userId,
-//         placedPosition: pos,
-//         newlyJoinedUserId: user.id,
-//         t,
-//       });
-//     }
-
-//     await t.commit();
-
-//     const token = signToken(user.id);
-//     return res.json({
-//       msg: "Registered",
-//       token,
-//       user: {
-//         id: user.id,
-//         name: user.name,
-//         role: user.role,
-//         email: user.email,
-//         phone: user.phone,
-//         referralCode: user.referralCode,
-//       },
-//     });
-//   } catch (err) {
-//     await t.rollback();
-//     return res.status(400).json({ msg: err.message });
-//   }
-// });
 router.post("/register", (req, res) => {
-  uploadProfilePic(req, res, async (err) => {
+  uploadUserDocs(req, res, async (err) => {
     console.log("REQ HEADERS =>", req.headers["content-type"]);
     console.log("REQ BODY =>", req.body);
     console.log("REQ FILE =>", req.file);
@@ -673,10 +485,15 @@ router.post("/register", (req, res) => {
       const referralCode = req.body.referralCode;
 
       const userType = req.body.userType;
-      const { bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId } = req.body;
-      const profilePic = req.file
-        ? `/${req.file.path.split("\\").join("/")}`
-        : null;
+      const {
+        bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId,
+        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber
+      } = req.body;
+
+      const profilePic = getPublicPath(req.files?.profilePic?.[0]);
+      const bankPhoto = getPublicPath(req.files?.bankPhoto?.[0]);
+      const panPhoto = getPublicPath(req.files?.panPhoto?.[0]);
+      const aadharPhoto = getPublicPath(req.files?.aadharPhoto?.[0]);
 
 
       if (!name || !email || !phone || !password) {
@@ -713,11 +530,20 @@ router.post("/register", (req, res) => {
           role: roleToSave,
           ...(userType ? { userType } : {}),
           ...(profilePic ? { profilePic } : {}),
+          ...(bankPhoto ? { bankPhoto } : {}),
+          ...(panPhoto ? { panPhoto } : {}),
+          ...(aadharPhoto ? { aadharPhoto } : {}),
           ...(bankAccountNumber ? { bankAccountNumber } : {}),
           ...(ifscCode ? { ifscCode } : {}),
           ...(accountHolderName ? { accountHolderName } : {}),
           ...(panNumber ? { panNumber } : {}),
           ...(upiId ? { upiId } : {}),
+          ...(gender ? { gender } : {}),
+          ...(dateOfBirth ? { dateOfBirth } : {}),
+          ...(bankName ? { bankName } : {}),
+          ...(bankBranch ? { bankBranch } : {}),
+          ...(bankAccountType ? { bankAccountType } : {}),
+          ...(adharNumber ? { adharNumber } : {}),
         },
         { transaction: t }
       );
@@ -896,7 +722,7 @@ router.post("/register", (req, res) => {
 // POST /api/auth/placement-register
 // Body: { name, email, phone, password, parentId, position, userType, ... }
 router.post("/placement-register", auth, (req, res) => {
-  uploadProfilePic(req, res, async (err) => {
+  uploadUserDocs(req, res, async (err) => {
     const t = await sequelize.transaction();
 
     try {
@@ -906,10 +732,15 @@ router.post("/placement-register", auth, (req, res) => {
       const sponsorId = req.user.id; // The logged-in user is the sponsor
 
       const userType = req.body.userType;
-      const { bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId } = req.body;
-      const profilePic = req.file
-        ? `/${req.file.path.split("\\").join("/")}`
-        : null;
+      const {
+        bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId,
+        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber
+      } = req.body;
+
+      const profilePic = getPublicPath(req.files?.profilePic?.[0]);
+      const bankPhoto = getPublicPath(req.files?.bankPhoto?.[0]);
+      const panPhoto = getPublicPath(req.files?.panPhoto?.[0]);
+      const aadharPhoto = getPublicPath(req.files?.aadharPhoto?.[0]);
 
       if (!name || !email || !phone || !password || !parentId || !position) {
         throw new Error("name, email, phone, password, parentId, and position are required");
@@ -965,11 +796,20 @@ router.post("/placement-register", auth, (req, res) => {
           sponsorId,
           ...(userType ? { userType } : {}),
           ...(profilePic ? { profilePic } : {}),
+          ...(bankPhoto ? { bankPhoto } : {}),
+          ...(panPhoto ? { panPhoto } : {}),
+          ...(aadharPhoto ? { aadharPhoto } : {}),
           ...(bankAccountNumber ? { bankAccountNumber } : {}),
           ...(ifscCode ? { ifscCode } : {}),
           ...(accountHolderName ? { accountHolderName } : {}),
           ...(panNumber ? { panNumber } : {}),
           ...(upiId ? { upiId } : {}),
+          ...(gender ? { gender } : {}),
+          ...(dateOfBirth ? { dateOfBirth } : {}),
+          ...(bankName ? { bankName } : {}),
+          ...(bankBranch ? { bankBranch } : {}),
+          ...(bankAccountType ? { bankAccountType } : {}),
+          ...(adharNumber ? { adharNumber } : {}),
         },
         { transaction: t }
       );
@@ -1107,7 +947,6 @@ router.post("/placement-register", auth, (req, res) => {
 // ✅ LOGIN WITH userID OR email
 // Body: { login: "BW000123" OR "test@gmail.com", password: "123456" }
 
-// import { Op } from "sequelize"; // ✅ add at top of file once
 
 router.post("/login", async (req, res) => {
   try {
@@ -1169,7 +1008,7 @@ router.get("/welcome-letter", auth, async (req, res) => {
         {
           model: User,
           as: "sponsor",
-          attributes: ["userID", "name"],
+          attributes: ["userID", "name", "phone"],
         },
       ],
     });
@@ -1236,19 +1075,22 @@ router.get("/welcome-letter", auth, async (req, res) => {
 
     let introducer = "N/A";
     let introducerName = "N/A";
+    let introducerPhone = "N/A";
 
     if (user.sponsor) {
       introducer = user.sponsor.userID;
       introducerName = user.sponsor.name;
+      introducerPhone = user.sponsor.phone;
     } else {
       // Fallback: check Referral table
       const refRecord = await Referral.findOne({
         where: { referredUserId: userId },
-        include: [{ model: User, as: "sponsor", attributes: ["userID", "name"] }],
+        include: [{ model: User, as: "sponsor", attributes: ["userID", "name", "phone"] }],
       });
       if (refRecord && refRecord.sponsor) {
         introducer = refRecord.sponsor.userID;
         introducerName = refRecord.sponsor.name;
+        introducerPhone = refRecord.sponsor.phone;
       }
     }
 
@@ -1264,6 +1106,7 @@ router.get("/welcome-letter", auth, async (req, res) => {
       pinCode: address ? address.pincode : "N/A",
       introducer,
       introducerName,
+      introducerPhone,
       placedIn: binaryNode ? (binaryNode.position === "LEFT" ? "L" : "R") : "N/A",
       productSelected: productName,
     };

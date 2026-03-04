@@ -1534,7 +1534,7 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
       // 2) if newly unlocked -> update userType
       if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
         await User.update(
-          { userType: "ENTREPRENEUR" },
+          { userType: "ENTREPRENEUR", activationDate: new Date() },
           { where: { id: order.userId }, transaction: t }
         );
       }

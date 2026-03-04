@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
-import { uploadProfilePic, getPublicPath } from "../config/upload.js";
+import { uploadUserDocs, getPublicPath } from "../config/upload.js";
 
 const router = express.Router();
 /**
@@ -32,6 +32,16 @@ router.get("/me", auth, async (req, res) => {
         "accountHolderName",
         "panNumber",
         "upiId",
+        "gender",
+        "dateOfBirth",
+        "activationDate",
+        "bankPhoto",
+        "panPhoto",
+        "aadharPhoto",
+        "bankName",
+        "bankBranch",
+        "bankAccountType",
+        "adharNumber",
         "createdAt",
         "updatedAt",
       ],
@@ -87,6 +97,16 @@ router.get("/", auth, isAdmin, async (req, res) => {
         "accountHolderName",
         "panNumber",
         "upiId",
+        "gender",
+        "dateOfBirth",
+        "activationDate",
+        "bankPhoto",
+        "panPhoto",
+        "aadharPhoto",
+        "bankName",
+        "bankBranch",
+        "bankAccountType",
+        "adharNumber",
         "createdAt",
         "updatedAt",
       ],
@@ -124,6 +144,16 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
         "accountHolderName",
         "panNumber",
         "upiId",
+        "gender",
+        "dateOfBirth",
+        "activationDate",
+        "bankPhoto",
+        "panPhoto",
+        "aadharPhoto",
+        "bankName",
+        "bankBranch",
+        "bankAccountType",
+        "adharNumber",
         "createdAt",
         "updatedAt",
       ],
@@ -146,11 +176,29 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
  * Body: { name?, email?, phone?, role?, password?, userType?, profilePic(file) }
  */
 router.put("/:id", auth, (req, res) => {
-  uploadProfilePic(req, res, async (err) => {
+  uploadUserDocs(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
 
-      const { name, email, phone, role, password, userType, bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId } = req.body;
+      const {
+        name,
+        email,
+        phone,
+        role,
+        password,
+        userType,
+        bankAccountNumber,
+        ifscCode,
+        accountHolderName,
+        panNumber,
+        upiId,
+        gender,
+        dateOfBirth,
+        bankName,
+        bankBranch,
+        bankAccountType,
+        adharNumber,
+      } = req.body;
 
       const user = await User.findByPk(req.params.id);
       if (!user) return res.status(404).json({ msg: "User not found" });
@@ -196,10 +244,28 @@ router.put("/:id", auth, (req, res) => {
       if (panNumber !== undefined) user.panNumber = panNumber;
       if (upiId !== undefined) user.upiId = upiId;
 
+      // New Fields
+      if (gender !== undefined) user.gender = gender;
+      if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth;
+      if (bankName !== undefined) user.bankName = bankName;
+      if (bankBranch !== undefined) user.bankBranch = bankBranch;
+      if (bankAccountType !== undefined) user.bankAccountType = bankAccountType;
+      if (adharNumber !== undefined) user.adharNumber = adharNumber;
+
       // profilePic update (only if file uploaded)
-      if (req.file) {
-        const profilePic = getPublicPath(req.file);
-        user.profilePic = profilePic;
+      if (req.files) {
+        if (req.files.profilePic && req.files.profilePic[0]) {
+          user.profilePic = getPublicPath(req.files.profilePic[0]);
+        }
+        if (req.files.bankPhoto && req.files.bankPhoto[0]) {
+          user.bankPhoto = getPublicPath(req.files.bankPhoto[0]);
+        }
+        if (req.files.panPhoto && req.files.panPhoto[0]) {
+          user.panPhoto = getPublicPath(req.files.panPhoto[0]);
+        }
+        if (req.files.aadharPhoto && req.files.aadharPhoto[0]) {
+          user.aadharPhoto = getPublicPath(req.files.aadharPhoto[0]);
+        }
       }
 
       await user.save();
@@ -219,6 +285,16 @@ router.put("/:id", auth, (req, res) => {
           accountHolderName: user.accountHolderName,
           panNumber: user.panNumber,
           upiId: user.upiId,
+          gender: user.gender,
+          dateOfBirth: user.dateOfBirth,
+          activationDate: user.activationDate,
+          bankPhoto: user.bankPhoto,
+          panPhoto: user.panPhoto,
+          aadharPhoto: user.aadharPhoto,
+          bankName: user.bankName,
+          bankBranch: user.bankBranch,
+          bankAccountType: user.bankAccountType,
+          adharNumber: user.adharNumber,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         },
@@ -299,4 +375,3 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
 
 
 export default router;
-

@@ -347,6 +347,7 @@ import { Op } from "sequelize";
 
 import User from "../models/User.js";
 import BinaryNode from "../models/BinaryNode.js";
+import PairPending from "../models/PairPending.js";
 
 const router = express.Router();
 
@@ -582,12 +583,19 @@ router.get("/stats", auth, async (req, res) => {
 
     if (!rootNode) return res.status(404).json({ msg: "Binary tree not initialized" });
 
-    const [leftUserIds, rightUserIds, directReferrals] = await Promise.all([
+    const [leftUserIds, rightUserIds, directReferrals, rootUser, leftCF, rightCF] = await Promise.all([
       collectSubtreeUserIds(rootNode.leftChildId),
       collectSubtreeUserIds(rootNode.rightChildId),
       User.findAll({
         where: { sponsorId: rootUserId },
         attributes: ["id", "userID", "userType", "name"],
+      }),
+      User.findByPk(rootUserId, { attributes: ["paidPairs"] }),
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
+      }),
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
       }),
     ]);
 
@@ -611,6 +619,9 @@ router.get("/stats", auth, async (req, res) => {
       right: countByUserType(rightUsers),
       overall: countByUserType(overallUsers),
       direct: countByUserType(directReferrals),
+      totalPairs: rootUser?.paidPairs || 0,
+      leftCarryForward: leftCF,
+      rightCarryForward: rightCF,
       meta: {
         leftCount: leftUsers.length,
         rightCount: rightUsers.length,
