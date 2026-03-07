@@ -106,6 +106,7 @@ import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
 import { uploadCategoryImage, getPublicPath } from "../config/upload.js";
 import { sequelize } from "../config/db.js";
+import optionalAuth from "../middleware/optionalAuth.js";
 
 const router = express.Router();
 
@@ -116,7 +117,7 @@ const toInt = (v, fb = 0) => {
 };
 
 // ✅ GET all (sorted by sortOrder then name)
-router.get("/", async (req, res) => {
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const rows = await Category.findAll({
       order: [
@@ -131,7 +132,7 @@ router.get("/", async (req, res) => {
 });
 
 // ✅ GET single
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const row = await Category.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "Category not found" });

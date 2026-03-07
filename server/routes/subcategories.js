@@ -3,6 +3,7 @@ import Category from "../models/Category.js";
 import SubCategory from "../models/SubCategory.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
+import optionalAuth from "../middleware/optionalAuth.js";
 import { uploadSubCategoryImage, getPublicPath } from "../config/upload.js";
 
 const router = express.Router();
@@ -16,7 +17,7 @@ const imgPath = (file) => getPublicPath(file);
  *  - /api/subcategories?categoryName=Medicines
  *  - /api/subcategories (all)
  */
-router.get("/", async (req, res) => {
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const { categoryId, categoryName } = req.query;
 
@@ -47,7 +48,7 @@ router.get("/", async (req, res) => {
 });
 
 // ✅ GET single
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const row = await SubCategory.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "SubCategory not found" });
@@ -58,7 +59,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ✅ CREATE (admin) + image (form-data)
-router.post("/", auth, (req, res) => {
+router.post("/", auth, isAdmin, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
@@ -86,7 +87,7 @@ router.post("/", auth, (req, res) => {
 });
 
 // ✅ UPDATE (admin) + image optional
-router.put("/:id", auth, (req, res) => {
+router.put("/:id", auth, isAdmin, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
@@ -117,7 +118,7 @@ router.put("/:id", auth, (req, res) => {
 });
 
 // ✅ DELETE (admin)
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", auth, isAdmin, async (req, res) => {
   try {
     const row = await SubCategory.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "SubCategory not found" });
@@ -130,3 +131,4 @@ router.delete("/:id", auth, async (req, res) => {
 });
 
 export default router;
+
