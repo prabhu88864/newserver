@@ -209,11 +209,11 @@ async function ensureNode(userId, t) {
 }
 
 // Spillover placement: go down LEFT/RIGHT path until empty slot
-async function findPlacementParent({ sponsorUserId, position, t }) {
+async function findPlacementParent({ sponsorUserId, position, t, lock = true }) {
   let current = await BinaryNode.findOne({
     where: { userId: sponsorUserId },
     transaction: t,
-    lock: t.LOCK.UPDATE,
+    ...(lock && t ? { lock: t.LOCK.UPDATE } : {}),
   });
   if (!current) throw new Error("Sponsor node not found");
 
@@ -224,7 +224,7 @@ async function findPlacementParent({ sponsorUserId, position, t }) {
       current = await BinaryNode.findOne({
         where: { userId: current.leftChildId },
         transaction: t,
-        lock: t.LOCK.UPDATE,
+        ...(lock && t ? { lock: t.LOCK.UPDATE } : {}),
       });
     } else {
       if (!current.rightChildId) return current;
@@ -232,13 +232,66 @@ async function findPlacementParent({ sponsorUserId, position, t }) {
       current = await BinaryNode.findOne({
         where: { userId: current.rightChildId },
         transaction: t,
-        lock: t.LOCK.UPDATE,
+        ...(lock && t ? { lock: t.LOCK.UPDATE } : {}),
       });
     }
 
     if (!current) throw new Error("Broken tree: missing node while placing");
   }
 }
+
+/**
+ * ✅ GET /api/auth/placement-preview
+ * Public API to show Sponsor name and Final Placement Parent during registration
+ */
+router.get("/placement-preview", async (req, res) => {
+  try {
+    const { sponsorId, position } = req.query;
+
+    if (!sponsorId || !position) {
+      return res.status(400).json({ msg: "sponsorId and position are required" });
+    }
+
+    const pos = String(position).toUpperCase();
+    if (!["LEFT", "RIGHT"].includes(pos)) {
+      return res.status(400).json({ msg: "Invalid position. Use LEFT or RIGHT" });
+    }
+
+    // 1. Find the Sponsor (The ID entered in the form)
+    const sponsor = await User.findOne({
+      where: { userID: sponsorId },
+      attributes: ["id", "userID", "name"],
+    });
+
+    if (!sponsor) {
+      return res.status(404).json({ msg: "Sponsor ID not found" });
+    }
+
+    // 2. Find the Final Placement Parent (Where the user will land)
+    // We use a separate transaction-less call for preview to avoid locking
+    const placedParentNode = await findPlacementParent({
+      sponsorUserId: sponsor.id,
+      position: pos,
+      lock: false,
+    });
+
+    // 3. Get Placement Parent Details
+    const placedParentUser = await User.findByPk(placedParentNode.userId, {
+      attributes: ["userID", "name"],
+    });
+
+    return res.json({
+      sponsorId: sponsor.userID,
+      sponsorName: sponsor.name,
+      placementParentId: placedParentUser?.userID || "N/A",
+      placementParentName: placedParentUser?.name || "N/A",
+      position: pos,
+    });
+  } catch (err) {
+    console.error("Placement Preview Error:", err);
+    return res.status(500).json({ msg: err.message });
+  }
+});
 
 // ========================= PAIRING (PairPending + PairMatch) =========================
 async function updateUplineCountsAndBonuses({
@@ -487,7 +540,7 @@ router.post("/register", (req, res) => {
       const userType = req.body.userType;
       const {
         bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId,
-        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber
+        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber, nomineeName, nomineeRelation, nomineePhone
       } = req.body;
 
       const profilePic = getPublicPath(req.files?.profilePic?.[0]);
@@ -544,6 +597,9 @@ router.post("/register", (req, res) => {
           ...(bankBranch ? { bankBranch } : {}),
           ...(bankAccountType ? { bankAccountType } : {}),
           ...(adharNumber ? { adharNumber } : {}),
+          ...(nomineeName ? { nomineeName } : {}),
+          ...(nomineeRelation ? { nomineeRelation } : {}),
+          ...(nomineePhone ? { nomineePhone } : {}),
         },
         { transaction: t }
       );
@@ -708,6 +764,9 @@ router.post("/register", (req, res) => {
           accountHolderName: user.accountHolderName,
           panNumber: user.panNumber,
           upiId: user.upiId,
+          nomineeName: user.nomineeName,
+          nomineeRelation: user.nomineeRelation,
+          nomineePhone: user.nomineePhone,
         },
       });
     } catch (err) {
@@ -734,7 +793,7 @@ router.post("/placement-register", auth, (req, res) => {
       const userType = req.body.userType;
       const {
         bankAccountNumber, ifscCode, accountHolderName, panNumber, upiId,
-        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber
+        gender, dateOfBirth, bankName, bankBranch, bankAccountType, adharNumber, nomineeName, nomineeRelation, nomineePhone
       } = req.body;
 
       const profilePic = getPublicPath(req.files?.profilePic?.[0]);
@@ -810,6 +869,9 @@ router.post("/placement-register", auth, (req, res) => {
           ...(bankBranch ? { bankBranch } : {}),
           ...(bankAccountType ? { bankAccountType } : {}),
           ...(adharNumber ? { adharNumber } : {}),
+          ...(nomineeName ? { nomineeName } : {}),
+          ...(nomineeRelation ? { nomineeRelation } : {}),
+          ...(nomineePhone ? { nomineePhone } : {}),
         },
         { transaction: t }
       );

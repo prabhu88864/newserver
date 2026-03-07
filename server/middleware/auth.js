@@ -14,7 +14,8 @@ export default async function auth(req, res, next) {
       attributes: [
         "id", "role", "email", "name", "userType", "profilePic", "userID",
         "phone", "bankAccountNumber", "ifscCode", "accountHolderName",
-        "panNumber", "upiId", "gender", "dateOfBirth", "activationDate"
+        "panNumber", "upiId", "gender", "dateOfBirth", "activationDate",
+        "nomineeName", "nomineeRelation", "nomineePhone"
       ],
     });
 

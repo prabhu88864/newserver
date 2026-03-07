@@ -73,10 +73,12 @@ router.get("/", auth, isAdmin, async (req, res) => {
         "bankBranch",
         "bankAccountType",
         "adharNumber",
+        "nomineeName",
+        "nomineeRelation",
+        "nomineePhone",
         "createdAt",
         "updatedAt",
       ],
-      order: [["createdAt", "DESC"]],
     });
 
     res.json({
@@ -120,6 +122,9 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
         "bankBranch",
         "bankAccountType",
         "adharNumber",
+        "nomineeName",
+        "nomineeRelation",
+        "nomineePhone",
         "createdAt",
         "updatedAt",
       ],
@@ -164,6 +169,9 @@ router.put("/:id", auth, (req, res) => {
         bankBranch,
         bankAccountType,
         adharNumber,
+        nomineeName,
+        nomineeRelation,
+        nomineePhone,
       } = req.body;
 
       const user = await User.findByPk(req.params.id);
@@ -218,6 +226,10 @@ router.put("/:id", auth, (req, res) => {
       if (bankAccountType !== undefined) user.bankAccountType = bankAccountType;
       if (adharNumber !== undefined) user.adharNumber = adharNumber;
 
+      if (nomineeName !== undefined) user.nomineeName = nomineeName;
+      if (nomineeRelation !== undefined) user.nomineeRelation = nomineeRelation;
+      if (nomineePhone !== undefined) user.nomineePhone = nomineePhone;
+
       // profilePic update (only if file uploaded)
       if (req.files) {
         if (req.files.profilePic && req.files.profilePic[0]) {
@@ -261,6 +273,9 @@ router.put("/:id", auth, (req, res) => {
           bankBranch: user.bankBranch,
           bankAccountType: user.bankAccountType,
           adharNumber: user.adharNumber,
+          nomineeName: user.nomineeName,
+          nomineeRelation: user.nomineeRelation,
+          nomineePhone: user.nomineePhone,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         },

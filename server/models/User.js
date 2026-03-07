@@ -54,11 +54,14 @@ const User = sequelize.define("User", {
   bankBranch: { type: DataTypes.STRING, allowNull: true },
   bankAccountType: { type: DataTypes.STRING, allowNull: true },
   adharNumber: { type: DataTypes.STRING, allowNull: true },
+
+  // Nominee Details
+  nomineeName: { type: DataTypes.STRING, allowNull: true },
+  nomineeRelation: { type: DataTypes.STRING, allowNull: true },
+  nomineePhone: { type: DataTypes.STRING, allowNull: true },
 }, {
   indexes: [
     { fields: ["sponsorId"] },
-    { fields: ["userID"] },
-    { fields: ["email"] },
   ]
 });
 
