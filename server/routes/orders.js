@@ -579,6 +579,8 @@ router.get("/", auth, async (req, res) => {
       else where.status = { [Op.like]: `%${search}%` };
     }
 
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+
     const orders = await Order.findAll({
       where,
       include: [
@@ -597,6 +599,7 @@ router.get("/", auth, async (req, res) => {
       ],
       order: [["createdAt", "DESC"]],
       distinct: true,
+      limit: limit,
     });
 
     res.json({ total: orders.length, orders });

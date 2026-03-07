@@ -54,6 +54,12 @@ const User = sequelize.define("User", {
   bankBranch: { type: DataTypes.STRING, allowNull: true },
   bankAccountType: { type: DataTypes.STRING, allowNull: true },
   adharNumber: { type: DataTypes.STRING, allowNull: true },
+}, {
+  indexes: [
+    { fields: ["sponsorId"] },
+    { fields: ["userID"] },
+    { fields: ["email"] },
+  ]
 });
 
 const generateNumericUserID = () => {

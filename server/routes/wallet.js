@@ -3,7 +3,7 @@ import auth from "../middleware/auth.js";
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import isAdmin from "../middleware/isAdmin.js";
-import User from "../models/User.js"; 
+import User from "../models/User.js";
 import PairMatch from "../models/PairMatch.js";
 
 
@@ -87,11 +87,11 @@ router.get("/", auth, async (req, res) => {
     //   .filter((t) => t?.meta?.pending === true)
     //   .reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const lockedBalance = txns
-  .filter((t) => {
-    const m = typeof t.meta === "string" ? JSON.parse(t.meta || "{}") : (t.meta || {});
-    return m.pending === true;
-  })
-  .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      .filter((t) => {
+        const m = typeof t.meta === "string" ? JSON.parse(t.meta || "{}") : (t.meta || {});
+        return m.pending === true;
+      })
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
 
     const availableBalance = Number(wallet.balance || 0);
@@ -152,15 +152,18 @@ router.get("/transactions", auth, async (req, res) => {
   const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
   if (!wallet) return res.json([]);
 
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+
   const txns = await WalletTransaction.findAll({
     where: { walletId: wallet.id },
     order: [["createdAt", "DESC"]],
+    limit: limit,
   });
 
   const out = txns.map((row) => {
     const t = row.toJSON();
     if (typeof t.meta === "string") {
-      try { t.meta = JSON.parse(t.meta); } catch {}
+      try { t.meta = JSON.parse(t.meta); } catch { }
     }
     return t;
   });

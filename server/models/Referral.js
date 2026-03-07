@@ -9,7 +9,12 @@ const Referral = sequelize.define(
     position: { type: DataTypes.ENUM("LEFT", "RIGHT"), allowNull: false },
     joinBonusPaid: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [
+      { fields: ["sponsorId"] }
+    ]
+  }
 );
 
 export default Referral;
