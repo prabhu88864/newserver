@@ -67,12 +67,17 @@ router.get("/referral-summary", auth, async (req, res) => {
   try {
     const userId = req.user.id;
     const periods = ["day", "week", "month", "year"];
-    const summary = {};
 
-    for (const p of periods) {
-      const { start, end } = getRangeForPeriod(p);
-      summary[p] = await getReferralCount(userId, start, end);
-    }
+    // Optimize: Fetch all counts in parallel instead of sequentially in a loop
+    const counts = await Promise.all(
+      periods.map(async (p) => {
+        const { start, end } = getRangeForPeriod(p);
+        return { period: p, count: await getReferralCount(userId, start, end) };
+      })
+    );
+
+    const summary = {};
+    counts.forEach((c) => (summary[c.period] = c.count));
 
     return res.json({
       userId,
