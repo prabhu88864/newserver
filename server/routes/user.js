@@ -16,42 +16,8 @@ const router = express.Router();
  */
 router.get("/me", auth, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: [
-        "id",
-        "userID",
-        "name",
-        "email",
-        "phone",
-        "role",
-        "userType",
-        "profilePic",
-        "referralCode",
-        "bankAccountNumber",
-        "ifscCode",
-        "accountHolderName",
-        "panNumber",
-        "upiId",
-        "gender",
-        "dateOfBirth",
-        "activationDate",
-        "bankPhoto",
-        "panPhoto",
-        "aadharPhoto",
-        "bankName",
-        "bankBranch",
-        "bankAccountType",
-        "adharNumber",
-        "createdAt",
-        "updatedAt",
-      ],
-    });
-
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-
-    res.json({ user });
+    // Data is already fetched in auth middleware to reduce TTFB
+    res.json({ user: req.user });
   } catch (err) {
     console.error("GET /api/users/me error:", err);
     res.status(500).json({ msg: "Server error" });

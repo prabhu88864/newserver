@@ -11,18 +11,17 @@ export default async function auth(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // { id, iat, exp }
 
     const user = await User.findByPk(decoded.id, {
-      attributes: ["id", "role", "email", "name"],
+      attributes: [
+        "id", "role", "email", "name", "userType", "profilePic", "userID",
+        "phone", "bankAccountNumber", "ifscCode", "accountHolderName",
+        "panNumber", "upiId", "gender", "dateOfBirth", "activationDate"
+      ],
     });
 
     if (!user) return res.status(401).json({ msg: "User not found" });
 
-    // ✅ now isAdmin can check role
-    req.user = {
-      id: user.id,
-      role: (user.role || "").toUpperCase(),
-      email: user.email,
-      name: user.name,
-    };
+    req.user = user.toJSON();
+    req.user.role = (req.user.role || "").toUpperCase();
 
     next();
   } catch (err) {
