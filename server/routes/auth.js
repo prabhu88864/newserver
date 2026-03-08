@@ -1028,7 +1028,7 @@ router.post("/login", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ msg: "Invalid userIDor password" });
+      return res.status(400).json({ msg: "Invalid userID or password" });
     }
 
     if (String(password) !== String(user.password)) {

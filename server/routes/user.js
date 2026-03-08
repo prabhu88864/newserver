@@ -8,6 +8,12 @@ import User from "../models/User.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
 import { uploadUserDocs, getPublicPath } from "../config/upload.js";
+import { sequelize } from "../config/db.js";
+import Wallet from "../models/Wallet.js";
+import WalletTransaction from "../models/WalletTransaction.js";
+import BinaryNode from "../models/BinaryNode.js";
+import Referral from "../models/Referral.js";
+import ReferralLink from "../models/ReferralLink.js";
 
 const router = express.Router();
 /**
@@ -336,20 +342,50 @@ router.post("/change-password", auth, async (req, res) => {
  * ✅ DELETE /api/users/:id
  */
 router.delete("/:id", auth, isAdmin, async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const user = await User.findByPk(req.params.id);
-    if (!user) return res.status(404).json({ msg: "User not found" });
-
-    // Safety: prevent admin deleting himself (recommended)
-    if (user.id === req.user.id) {
-      return res.status(400).json({ msg: "You cannot delete your own admin account" });
+    const user = await User.findByPk(req.params.id, { transaction: t });
+    if (!user) {
+      await t.rollback();
+      return res.status(404).json({ msg: "User not found" });
     }
 
-    await user.destroy();
-    res.json({ msg: "User deleted" });
+    // Safety: prevent admin deleting himself
+    if (user.id === req.user.id) {
+      await t.rollback();
+      return res.status(400).json({ msg: "You cannot delete your own account" });
+    }
+
+    const userId = user.id;
+
+    // 1. Delete wallet transactions first (FK -> Wallet)
+    const wallet = await Wallet.findOne({ where: { userId }, transaction: t });
+    if (wallet) {
+      await WalletTransaction.destroy({ where: { walletId: wallet.id }, transaction: t });
+      await wallet.destroy({ transaction: t });
+    }
+
+    // 2. Delete referral links
+    await ReferralLink.destroy({ where: { userId }, transaction: t });
+
+    // 3. Delete referrals (as sponsor or referred)
+    await Referral.destroy({
+      where: { [Op.or]: [{ sponsorId: userId }, { referredUserId: userId }] },
+      transaction: t,
+    });
+
+    // 4. Delete binary node
+    await BinaryNode.destroy({ where: { userId }, transaction: t });
+
+    // 5. Finally delete user
+    await user.destroy({ transaction: t });
+
+    await t.commit();
+    res.json({ msg: "User deleted successfully" });
   } catch (err) {
+    await t.rollback();
     console.error("DELETE /api/users/:id error:", err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ msg: err.message || "Server error" });
   }
 });
 
