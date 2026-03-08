@@ -9,7 +9,7 @@ const Order = sequelize.define(
     totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     addressId: { type: DataTypes.INTEGER, allowNull: true },
 
-   deliveredOn: {
+    deliveredOn: {
       type: DataTypes.DATE,
       allowNull: true,
       defaultValue: null,
@@ -24,7 +24,7 @@ const Order = sequelize.define(
       type: DataTypes.ENUM("COD", "WALLET", "RAZORPAY"),
       allowNull: false,
     },
-     totalDiscount: {
+    totalDiscount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0,
@@ -36,9 +36,9 @@ const Order = sequelize.define(
       defaultValue: "PENDING",
     },
     deliveryCharge: {
-  type: DataTypes.DECIMAL(10, 2),
-  defaultValue: 0,
-},
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
 
   },
   { timestamps: true }

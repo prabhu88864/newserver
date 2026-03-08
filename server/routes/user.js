@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import auth from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
+import authorize from "../middleware/authorize.js";
 import { uploadUserDocs, getPublicPath } from "../config/upload.js";
 import { sequelize } from "../config/db.js";
 import Wallet from "../models/Wallet.js";
@@ -14,6 +15,16 @@ import WalletTransaction from "../models/WalletTransaction.js";
 import BinaryNode from "../models/BinaryNode.js";
 import Referral from "../models/Referral.js";
 import ReferralLink from "../models/ReferralLink.js";
+import Cart from "../models/Cart.js";
+import CartItem from "../models/CartItem.js";
+import Address from "../models/Address.js";
+import Order from "../models/Order.js";
+import OrderItem from "../models/OrderItem.js";
+import Payment from "../models/Payment.js";
+import RankAchievement from "../models/RankAchievement.js";
+import PairMatch from "../models/PairMatch.js";
+import PairPending from "../models/PairPending.js";
+import ReferralEdge from "../models/ReferralEdge.js";
 
 const router = express.Router();
 /**
@@ -131,6 +142,7 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
         "nomineeName",
         "nomineeRelation",
         "nomineePhone",
+        "status",
         "createdAt",
         "updatedAt",
       ],
@@ -178,6 +190,7 @@ router.put("/:id", auth, (req, res) => {
         nomineeName,
         nomineeRelation,
         nomineePhone,
+        status,
       } = req.body;
 
       const user = await User.findByPk(req.params.id);
@@ -235,6 +248,13 @@ router.put("/:id", auth, (req, res) => {
       if (nomineeName !== undefined) user.nomineeName = nomineeName;
       if (nomineeRelation !== undefined) user.nomineeRelation = nomineeRelation;
       if (nomineePhone !== undefined) user.nomineePhone = nomineePhone;
+
+      if (status !== undefined) {
+        if (!["ACTIVE", "INACTIVE"].includes(status.toUpperCase())) {
+          return res.status(400).json({ msg: "Invalid status" });
+        }
+        user.status = status.toUpperCase();
+      }
 
       // profilePic update (only if file uploaded)
       if (req.files) {
@@ -358,32 +378,72 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
 
     const userId = user.id;
 
-    // 1. Delete wallet transactions first (FK -> Wallet)
+    // 1. Delete Cart & CartItems
+    const cart = await Cart.findOne({ where: { userId }, transaction: t });
+    if (cart) {
+      await CartItem.destroy({ where: { cartId: cart.id }, transaction: t });
+      await cart.destroy({ transaction: t });
+    }
+
+    // 2. Delete Payments (linked to User and Order)
+    await Payment.destroy({ where: { userId }, transaction: t });
+
+    // 3. Delete Orders & OrderItems
+    // Order items depend on Order, so delete them first
+    const orders = await Order.findAll({ where: { userId }, transaction: t });
+    for (const order of orders) {
+      await OrderItem.destroy({ where: { orderId: order.id }, transaction: t });
+      await order.destroy({ transaction: t });
+    }
+
+    // 4. Delete Addresses
+    await Address.destroy({ where: { userId }, transaction: t });
+
+    // 5. Delete Wallet & Transactions
     const wallet = await Wallet.findOne({ where: { userId }, transaction: t });
     if (wallet) {
       await WalletTransaction.destroy({ where: { walletId: wallet.id }, transaction: t });
       await wallet.destroy({ transaction: t });
     }
 
-    // 2. Delete referral links
+    // 6. Delete Referrals & Links
     await ReferralLink.destroy({ where: { sponsorId: userId }, transaction: t });
-
-    // 3. Delete referrals (as sponsor or referred)
     await Referral.destroy({
       where: { [Op.or]: [{ sponsorId: userId }, { referredUserId: userId }] },
       transaction: t,
     });
+    await ReferralEdge.destroy({
+      where: { [Op.or]: [{ sponsorId: userId }, { childId: userId }] },
+      transaction: t,
+    });
 
-    // 4. Delete binary node
+    // 7. Delete Binary Node logic
     await BinaryNode.destroy({ where: { userId }, transaction: t });
 
-    // 5. Finally delete user
+    // 8. Delete Bonus related (PairPending, PairMatch)
+    await PairPending.destroy({
+      where: {
+        [Op.or]: [{ uplineUserId: userId }, { downlineUserId: userId }]
+      },
+      transaction: t,
+    });
+    await PairMatch.destroy({
+      where: {
+        [Op.or]: [{ uplineUserId: userId }, { leftUserId: userId }, { rightUserId: userId }]
+      },
+      transaction: t,
+    });
+
+    // 9. Delete Rank/Awards
+    await RankAchievement.destroy({ where: { userId }, transaction: t });
+
+    // 10. Finally delete user
     await user.destroy({ transaction: t });
 
     await t.commit();
     res.json({ msg: "User deleted successfully" });
   } catch (err) {
-    await t.rollback();
+    if (t) await t.rollback();
     console.error("DELETE /api/users/:id error:", err);
     res.status(500).json({ msg: err.message || "Server error" });
   }

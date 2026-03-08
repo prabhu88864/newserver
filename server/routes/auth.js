@@ -1035,6 +1035,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ msg: "Invalid userID or password" });
     }
 
+    if (user.status === "INACTIVE") {
+      return res.status(403).json({ msg: "Your account is inactive. Please contact admin." });
+    }
+
     const token = signToken(user.id);
 
     return res.json({
@@ -1048,6 +1052,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         phone: user.phone,
         userType: user.userType,
+        status: user.status,
         profilePic: user.profilePic,
         referralCode: user.referralCode,
       },

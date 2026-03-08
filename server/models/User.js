@@ -59,6 +59,12 @@ const User = sequelize.define("User", {
   nomineeName: { type: DataTypes.STRING, allowNull: true },
   nomineeRelation: { type: DataTypes.STRING, allowNull: true },
   nomineePhone: { type: DataTypes.STRING, allowNull: true },
+
+  status: {
+    type: DataTypes.ENUM("ACTIVE", "INACTIVE"),
+    allowNull: false,
+    defaultValue: "ACTIVE",
+  },
 }, {
   indexes: [
     { fields: ["sponsorId"] },
