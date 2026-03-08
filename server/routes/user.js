@@ -366,7 +366,7 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
     }
 
     // 2. Delete referral links
-    await ReferralLink.destroy({ where: { userId }, transaction: t });
+    await ReferralLink.destroy({ where: { sponsorId: userId }, transaction: t });
 
     // 3. Delete referrals (as sponsor or referred)
     await Referral.destroy({
