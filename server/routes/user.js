@@ -82,6 +82,7 @@ router.get("/", auth, isAdmin, async (req, res) => {
         "nomineeName",
         "nomineeRelation",
         "nomineePhone",
+        "status",
         "createdAt",
         "updatedAt",
       ],
