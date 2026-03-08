@@ -131,6 +131,7 @@ router.get("/:id", auth, isAdmin, async (req, res) => {
         "nomineeName",
         "nomineeRelation",
         "nomineePhone",
+        "status",
         "createdAt",
         "updatedAt",
       ],
@@ -178,6 +179,7 @@ router.put("/:id", auth, (req, res) => {
         nomineeName,
         nomineeRelation,
         nomineePhone,
+        status,
       } = req.body;
 
       const user = await User.findByPk(req.params.id);
@@ -235,6 +237,14 @@ router.put("/:id", auth, (req, res) => {
       if (nomineeName !== undefined) user.nomineeName = nomineeName;
       if (nomineeRelation !== undefined) user.nomineeRelation = nomineeRelation;
       if (nomineePhone !== undefined) user.nomineePhone = nomineePhone;
+
+      if (status !== undefined) {
+        const s = status.toString().toUpperCase();
+        if (!["ACTIVE", "INACTIVE"].includes(s)) {
+          return res.status(400).json({ msg: "Invalid status (must be ACTIVE or INACTIVE)" });
+        }
+        user.status = s;
+      }
 
       // profilePic update (only if file uploaded)
       if (req.files) {
