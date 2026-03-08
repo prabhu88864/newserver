@@ -5,15 +5,17 @@ import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 
 import User from "../models/User.js";
-import auth from "../middleware/auth.js";
-import isAdmin from "../middleware/isAdmin.js";
-import { uploadUserDocs, getPublicPath } from "../config/upload.js";
 import { sequelize } from "../config/db.js";
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import BinaryNode from "../models/BinaryNode.js";
 import Referral from "../models/Referral.js";
 import ReferralLink from "../models/ReferralLink.js";
+import Cart from "../models/Cart.js";
+import Address from "../models/Address.js";
+import RankAchievement from "../models/RankAchievement.js";
+import PairPending from "../models/PairPending.js";
+import PairMatch from "../models/PairMatch.js";
 
 const router = express.Router();
 /**
@@ -374,10 +376,19 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
       transaction: t,
     });
 
-    // 4. Delete binary node
+    // 4. Delete binary node & pending pairs/matches
     await BinaryNode.destroy({ where: { userId }, transaction: t });
+    await PairPending.destroy({ where: { [Op.or]: [{ uplineUserId: userId }, { downlineUserId: userId }] }, transaction: t });
+    await PairMatch.destroy({ where: { [Op.or]: [{ uplineUserId: userId }, { leftUserId: userId }, { rightUserId: userId }] }, transaction: t });
 
-    // 5. Finally delete user
+    // 5. Delete Shopping Data (Cart, Address)
+    await Cart.destroy({ where: { userId }, transaction: t });
+    await Address.destroy({ where: { userId }, transaction: t });
+
+    // 6. Delete Rank data
+    await RankAchievement.destroy({ where: { userId }, transaction: t });
+
+    // 7. Finally delete user
     await user.destroy({ transaction: t });
 
     await t.commit();
