@@ -570,7 +570,8 @@ router.post("/register", (req, res) => {
 
       // role
       const requestedRole = String(req.body.role || "USER").toUpperCase();
-      const roleToSave = requestedRole === "ADMIN" ? "ADMIN" : "USER";
+      const allowedRoles = ["USER", "ADMIN", "MASTER", "STAFF"];
+      const roleToSave = allowedRoles.includes(requestedRole) ? requestedRole : "USER";
 
       // create user
       const user = await User.create(
@@ -787,7 +788,7 @@ router.post("/placement-register", auth, (req, res) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
 
-      const { name, email, phone, password, parentId, position } = req.body;
+      const { name, email, phone, password, parentId, position, role } = req.body;
       const sponsorId = req.user.id; // The logged-in user is the sponsor
 
       const userType = req.body.userType;
@@ -851,7 +852,7 @@ router.post("/placement-register", auth, (req, res) => {
           phone,
           password,
           referralCode: myCode,
-          role: "USER",
+          role: String(role || "USER").toUpperCase(),
           sponsorId,
           ...(userType ? { userType } : {}),
           ...(profilePic ? { profilePic } : {}),
