@@ -200,7 +200,7 @@ router.put("/:id", auth, (req, res) => {
       // role update
       if (role) {
         const r = role.toString().toUpperCase();
-        if (!["USER", "ADMIN"].includes(r)) {
+        if (!["USER", "ADMIN", "MASTER", "STAFF"].includes(r)) {
           return res.status(400).json({ msg: "Invalid role" });
         }
         user.role = r;

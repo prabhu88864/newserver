@@ -9,7 +9,7 @@ const User = sequelize.define("User", {
   password: { type: DataTypes.STRING, allowNull: false },
 
   role: {
-    type: DataTypes.ENUM("USER", "ADMIN"),
+    type: DataTypes.ENUM("USER", "ADMIN", "MASTER", "STAFF"),
     allowNull: false,
     defaultValue: "USER",
   },
