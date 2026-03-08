@@ -1031,10 +1031,9 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ msg: "Invalid userIDor password" });
     }
 
-    // const ok = await bcrypt.compare(password, user.password);
-    // if (!ok) {
-    //   return res.status(400).json({ msg: "Invalid userID or password" });
-    // }
+    if (String(password) !== String(user.password)) {
+      return res.status(400).json({ msg: "Invalid userID or password" });
+    }
 
     const token = signToken(user.id);
 
