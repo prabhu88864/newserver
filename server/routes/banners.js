@@ -151,10 +151,9 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
     const banner = await Banner.findByPk(req.params.id);
     if (!banner) return res.status(404).json({ msg: "Not found" });
 
-    banner.isActive = false;
-    await banner.save();
+    await banner.destroy();
 
-    res.json({ msg: "Banner disabled" });
+    res.json({ msg: "Banner deleted permanently" });
   } catch (e) {
     console.error(e);
     res.status(500).json({ msg: "Delete failed" });
