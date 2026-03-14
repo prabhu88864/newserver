@@ -84,11 +84,24 @@ async function buildTreeOptimized(rootUserId, maxDepth = 4) {
     // Batch fetch Users
     const users = await User.findAll({
       where: { id: { [Op.in]: currentLevelIds } },
-      attributes: ["id", "userID", "name", "referralCode", "userType", "createdAt"]
+      attributes: ["id", "userID", "name", "referralCode", "userType", "createdAt", "sponsorId"]
     });
 
+    const sponsorIds = users.map(u => u.sponsorId).filter(id => id);
+    const sponsors = sponsorIds.length > 0
+      ? await User.findAll({ where: { id: { [Op.in]: sponsorIds } }, attributes: ["id", "userID", "name"] })
+      : [];
+
+    const sponsorMap = new Map();
+    sponsors.forEach(s => sponsorMap.set(s.id, s));
+
     nodes.forEach(n => allNodesMap.set(n.userId, n));
-    users.forEach(u => allUsersMap.set(u.id, u));
+    users.forEach(u => {
+      if (u.sponsorId && sponsorMap.has(u.sponsorId)) {
+        u.sponsorDetails = sponsorMap.get(u.sponsorId);
+      }
+      allUsersMap.set(u.id, u);
+    });
 
     // Prepare next level
     const nextLevelIds = [];
@@ -113,6 +126,8 @@ async function buildTreeOptimized(rootUserId, maxDepth = 4) {
       referralCode: user.referralCode,
       userType: user.userType,
       joiningDate: node.joiningDate || user.createdAt,
+      sponsorPkId: user.sponsorDetails?.userID || null,
+      sponsorName: user.sponsorDetails?.name || null,
       leftId: node.leftChildId,
       rightId: node.rightChildId,
       left: null,
