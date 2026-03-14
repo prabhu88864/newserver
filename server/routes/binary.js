@@ -212,7 +212,7 @@ router.get("/stats", auth, async (req, res) => {
       collectSubtreeStats(rootNode.rightChildId),
       User.findAll({
         where: { sponsorId: rootUserId },
-        attributes: ["id", "userType"],
+        attributes: ["id", "userID", "name", "userType", "createdAt"],
       }),
       User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount"] }),
       PairPending.count({
@@ -247,6 +247,13 @@ router.get("/stats", auth, async (req, res) => {
         OTHER: leftStats.OTHER + rightStats.OTHER,
       },
       direct: directStats,
+      directReferralsList: directReferrals.map(u => ({
+        id: u.id,
+        userID: u.userID,
+        name: u.name,
+        userType: u.userType,
+        joinedAt: u.createdAt,
+      })),
       totalPairs: rootUser?.paidPairs || 0,
       leftCarryForward: leftCF,
       rightCarryForward: rightCF,
