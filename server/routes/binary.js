@@ -229,7 +229,7 @@ router.get("/stats", auth, async (req, res) => {
         where: { sponsorId: rootUserId },
         attributes: ["id", "userID", "name", "userType", "createdAt"],
       }),
-      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount"] }),
+      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount", "userType"] }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
       }),
@@ -269,7 +269,7 @@ router.get("/stats", auth, async (req, res) => {
         userType: u.userType,
         joinedAt: u.createdAt,
       })),
-      totalPairs: rootUser?.paidPairs || 0,
+      totalPairs: rootUser?.userType === "ENTREPRENEUR" ? (rootUser?.paidPairs || 0) : 0,
       leftCarryForward: leftCF,
       rightCarryForward: rightCF,
       meta: {
