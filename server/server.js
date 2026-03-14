@@ -48,6 +48,8 @@ import RankAchievement from "./models/RankAchievement.js";
 import RankSetting from "./models/RankSetting.js";
 import categoryRoutes from "./routes/categories.js";
 import subCategoryRoutes from "./routes/subcategories.js";
+import Contact from "./models/Contact.js";
+import contactsRoutes from "./routes/contacts.js";
 
 
 
@@ -97,9 +99,7 @@ app.use("/api/awards", awardsRoutes);
 
 app.use("/api/categories", categoryRoutes);
 app.use("/api/subcategories", subCategoryRoutes);
-
-
-
+app.use("/api/contacts", contactsRoutes);
 
 /* relations */
 Cart.belongsTo(User, { foreignKey: "userId" });
