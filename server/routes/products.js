@@ -41,7 +41,7 @@ const getProducts = async (req, res) => {
     const q = (search || serch || "").trim();
     if (q) {
       where[Op.or] = [
-        { name: { [Op.like]: `%${q}%` } },
+        { name: { [Op.like]: `${q}%` } },
         // { categoryName: { [Op.like]: `%${q}%` } },
         // { subCategoryName: { [Op.like]: `%${q}%` } },
         // { brand: { [Op.like]: `%${q}%` } },
