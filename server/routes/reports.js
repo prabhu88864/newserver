@@ -4,7 +4,8 @@ import { Op, Sequelize } from "sequelize";
 import { DateTime } from "luxon";
 import { sequelize } from "../config/db.js";
 
-import User from "../models/User.js"; // ✅ ADD THIS
+import User from "../models/User.js";
+import Product from "../models/Product.js";
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import PairMatch from "../models/PairMatch.js";
@@ -325,6 +326,148 @@ router.get("/admin/registration-stats", auth, async (req, res) => {
     return res
       .status(500)
       .json({ msg: "Failed to get registration stats", err: err.message });
+  }
+});
+
+// ✅ GET /api/reports/admin/stock-summary
+// Query params (all optional):
+//   ?sortBy=best_seller|highest_orders|low_stock|out_of_stock|newest  (default: newest)
+//   ?search=keyword        → filter by product name
+//   ?category=Health       → filter by category
+//   ?page=1&limit=20       → pagination
+router.get("/admin/stock-summary", auth, async (req, res) => {
+  try {
+    // 1. Admin-only
+    if (!["ADMIN", "MASTER", "STAFF"].includes(req.user.role)) {
+      return res.status(403).json({ msg: "Access denied. Admins only." });
+    }
+
+    // 2. Pagination & filters
+    const page     = Math.max(1, parseInt(req.query.page  || "1",  10));
+    const limit    = Math.max(1, parseInt(req.query.limit || "20", 10));
+    const offset   = (page - 1) * limit;
+    const search   = (req.query.search   || "").trim();
+    const category = (req.query.category || "").trim();
+
+    // 3. sortBy → 5 modes
+    //   best_seller    🏆  most DELIVERED qty first
+    //   highest_orders 📦  most total orders (sold + pending) first
+    //   low_stock      ⚠️  stock > 0 but < 10, least first
+    //   out_of_stock   🔴  stockQty = 0 only
+    //   newest         🆕  latest added first (default)
+    const SORT_MAP = {
+      best_seller:    "soldQty DESC, p.name ASC",
+      highest_orders: "(soldQty + pendingQty) DESC, p.name ASC",
+      low_stock:      "currentStock ASC, soldQty DESC",
+      out_of_stock:   "soldQty DESC, p.name ASC",
+      newest:         "p.createdAt DESC",
+    };
+    const sortBy  = SORT_MAP[req.query.sortBy] ? req.query.sortBy : "newest";
+    const orderBy = SORT_MAP[sortBy];
+
+    // 4. Build WHERE clause dynamically
+    const conditions   = ["p.isActive = 1"];
+    const replacements = { limit, offset };
+
+    if (search) {
+      conditions.push("p.name LIKE :search");
+      replacements.search = `%${search}%`;
+    }
+    if (category) {
+      conditions.push("p.categoryName = :category");
+      replacements.category = category;
+    }
+    if (sortBy === "out_of_stock") conditions.push("p.stockQty = 0");
+    if (sortBy === "low_stock")    conditions.push("p.stockQty > 0 AND p.stockQty < 10");
+
+    const whereClause = conditions.join(" AND ");
+
+    // 5. Single SQL: LEFT JOIN OrderItems + Orders, aggregate per product
+    const rows = await sequelize.query(
+      `SELECT
+         p.id,
+         p.name,
+         p.brand,
+         p.categoryName,
+         p.subCategoryName,
+         p.mrp,
+         p.price,
+         p.stockQty AS currentStock,
+         COALESCE(SUM(CASE WHEN o.status = 'DELIVERED'         THEN oi.qty ELSE 0 END), 0) AS soldQty,
+         COALESCE(SUM(CASE WHEN o.status IN ('PENDING','PAID') THEN oi.qty ELSE 0 END), 0) AS pendingQty
+       FROM Products p
+       LEFT JOIN OrderItems oi ON oi.productId = p.id
+       LEFT JOIN Orders     o  ON o.id = oi.orderId
+       WHERE ${whereClause}
+       GROUP BY p.id
+       ORDER BY ${orderBy}
+       LIMIT :limit OFFSET :offset`,
+      { replacements, type: sequelize.QueryTypes.SELECT }
+    );
+
+    // Count query for pagination
+    const countRows = await sequelize.query(
+      `SELECT COUNT(*) AS total FROM Products p WHERE ${whereClause}`,
+      { replacements, type: sequelize.QueryTypes.SELECT }
+    );
+    const totalItems = Number(countRows[0]?.total || 0);
+
+    // 6. Shape each product row
+    const LOW_STOCK_THRESHOLD = 10;
+    const products = rows.map((p) => {
+      const currentStock  = Number(p.currentStock);
+      const soldQty       = Number(p.soldQty);
+      const pendingQty    = Number(p.pendingQty);
+      const price         = Number(p.price);
+      const totalUploaded = currentStock + soldQty + pendingQty;
+      const revenue       = Number((soldQty * price).toFixed(2));
+
+      return {
+        id:          p.id,
+        name:        p.name,
+        brand:       p.brand || null,
+        category:    p.categoryName,
+        subCategory: p.subCategoryName || null,
+        mrp:         Number(p.mrp),
+        price,
+        // ── Stock breakdown ─────────────────────
+        totalUploaded,  // ever stocked = current + sold + pending
+        soldQty,        // DELIVERED orders qty
+        pendingQty,     // PENDING / PAID (not yet delivered)
+        currentStock,   // remaining right now
+        revenue,        // approx: soldQty × price
+        isLowStock:   currentStock > 0 && currentStock < LOW_STOCK_THRESHOLD,
+        isOutOfStock: currentStock === 0,
+      };
+    });
+
+    // 7. Summary across current page results
+    const summary = {
+      totalCurrentStock: products.reduce((a, p) => a + p.currentStock,  0),
+      totalSold:         products.reduce((a, p) => a + p.soldQty,        0),
+      totalPending:      products.reduce((a, p) => a + p.pendingQty,     0),
+      totalUploaded:     products.reduce((a, p) => a + p.totalUploaded,  0),
+      totalRevenue:      Number(products.reduce((a, p) => a + p.revenue, 0).toFixed(2)),
+      lowStockCount:     products.filter((p) => p.isLowStock).length,
+      outOfStockCount:   products.filter((p) => p.isOutOfStock).length,
+    };
+
+    return res.json({
+      sortedBy: sortBy,
+      products,
+      summary,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        limit,
+      },
+    });
+  } catch (err) {
+    console.error("STOCK SUMMARY ERROR =>", err);
+    return res
+      .status(500)
+      .json({ msg: "Failed to get stock summary", err: err.message });
   }
 });
 
