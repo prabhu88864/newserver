@@ -770,22 +770,46 @@ router.post("/admin/offline", auth, async (req, res) => {
     // ✅ If admin marked delivered, apply spend+unlock+referral release logic same as your status route
     let spendInfo = null;
     let sponsorPending = null;
+    const walletMap = new Map();
+    const minSpend = (await getSettingNumber("MIN_SPEND_UNLOCK", t)) || 30000;
 
     if (markDelivered) {
-      spendInfo = await addSpendAndUnlockIfNeeded({ userId: order.userId, amount: order.totalAmount, t });
+      spendInfo = await addSpendAndUnlockIfNeeded({
+        userId: order.userId,
+        amount: order.totalAmount,
+        t,
+        walletMap,
+        minSpend,
+      });
 
       if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
-        // update userType
-        await User.update({ userType: "ENTREPRENEUR" }, { where: { id: order.userId }, transaction: t });
+        await User.update(
+          { userType: "ENTREPRENEUR", activationDate: new Date() },
+          { where: { id: order.userId }, transaction: t }
+        );
 
-        const releasedJoin = await tryReleasePendingJoinBonusesForReferred({
+        const releasedJoinAsReferred = await tryReleasePendingJoinBonusesForReferred({
           referredUserId: order.userId,
           t,
+          walletMap,
+          minSpend,
         });
 
-        await tryReleasePendingPairBonuses(t);
+        const releasedJoinAsSponsor = await tryReleasePendingJoinBonusesForSponsor({
+          sponsorId: order.userId,
+          t,
+          walletMap,
+          minSpend,
+        });
 
-        sponsorPending = { releasedJoin };
+        await tryReleasePendingPairBonuses(t, walletMap, minSpend);
+
+        sponsorPending = { releasedJoinAsReferred, releasedJoinAsSponsor };
+      }
+
+      // ✅ Save all modified wallets ONCE (prevents stale instance overwrites)
+      for (const wallet of walletMap.values()) {
+        await wallet.save({ transaction: t });
       }
     }
 
