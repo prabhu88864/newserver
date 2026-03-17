@@ -513,7 +513,21 @@ GET /api/orders/admin?search=...
 router.get("/admin", auth, isAdmin, async (req, res) => {
   try {
     const search = (req.query.search || "").trim();
+    const type = (req.query.type || "").trim().toUpperCase(); // OFFLINE or ONLINE
     const where = {};
+
+    if (type === "OFFLINE" || type === "ONLINE") {
+      where.orderType = type;
+    }
+
+    // Handle search keywords if not explicitly filtered by type
+    if (!type) {
+      if (search.toLowerCase() === "offline") {
+        where.orderType = "OFFLINE";
+      } else if (search.toLowerCase() === "online") {
+        where.orderType = "ONLINE";
+      }
+    }
 
     if (search && /^\d+$/.test(search)) where.id = Number(search);
 
@@ -752,6 +766,7 @@ router.post("/admin/offline", auth, async (req, res) => {
         status: markDelivered ? "DELIVERED" : "PAID",
         deliveredOn: markDelivered ? new Date() : null,
         createdByAdminId: req.user.id,   // ✅ track which admin created this offline order
+        orderType: "OFFLINE", // ✅ mark as offline order
       },
       { transaction: t }
     );

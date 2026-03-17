@@ -41,6 +41,7 @@ const Order = sequelize.define(
     },
 
     createdByAdminId: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
+    orderType: { type: DataTypes.ENUM("ONLINE", "OFFLINE"), allowNull: false, defaultValue: "ONLINE" },
 
   },
   { timestamps: true }
