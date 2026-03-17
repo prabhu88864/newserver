@@ -627,4 +627,195 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
+
+
+/* ================= ADMIN: CREATE OFFLINE ORDER =================
+POST /api/orders/admin/offline
+Body:
+{
+  userId: number,
+  items: [{ productId:number, qty:number }],
+  paymentMethod: "OFFLINE" | "CASH" | "BANK" | "UPI",
+  paymentRef: "optional",
+  addressId: optional,
+  markDelivered: boolean (optional)
+}
+*/
+router.post("/admin/offline", auth, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const userId = Number(req.body.userId);
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    const paymentMethod = String(req.body.paymentMethod || "OFFLINE").toUpperCase();
+    const paymentRef = String(req.body.paymentRef || "").trim();
+    const addressId = req.body.addressId ? Number(req.body.addressId) : null;
+    const markDelivered = !!req.body.markDelivered;
+
+    if (!userId || userId <= 0) throw new Error("userId required");
+    if (!items.length) throw new Error("items required");
+
+    const allowedPay = ["OFFLINE", "CASH", "BANK", "UPI"];
+    if (!allowedPay.includes(paymentMethod)) throw new Error("Invalid paymentMethod");
+
+    const user = await User.findByPk(userId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!user) throw new Error("User not found");
+
+    // address optional (admin may not want address)
+    let address = null;
+    if (addressId) {
+      address = await Address.findOne({
+        where: { id: addressId, userId: userId, isActive: true },
+        transaction: t,
+      });
+      if (!address) throw new Error("Invalid addressId for this user");
+    }
+
+    // Load products (lock to avoid race)
+    const productIds = items.map((x) => Number(x.productId)).filter(Boolean);
+    const products = await Product.findAll({
+      where: { id: productIds, isActive: true },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    const pMap = new Map(products.map((p) => [p.id, p]));
+    if (products.length !== productIds.length) {
+      throw new Error("One or more products not found / inactive");
+    }
+
+    // calculate totals with your discount logic (same as user order)
+    let billAmount = 0;
+    let totalDiscount = 0;
+
+    const uType = String(user.userType || "").toUpperCase();
+
+    for (const it of items) {
+      const pid = Number(it.productId);
+      const qty = Number(it.qty || 0);
+      if (!pid || qty <= 0) throw new Error("Invalid items (productId/qty)");
+
+      const p = pMap.get(pid);
+      if (!p) throw new Error("Product not found");
+
+      if (Number(p.stockQty || 0) < qty) {
+        throw new Error(`Stock not enough for ${p.name}`);
+      }
+
+      const price = Number(p.price || 0);
+      let discPercent = 0;
+
+      if (uType === "ENTREPRENEUR") discPercent = Number(p.entrepreneurDiscount || 0);
+      else if (uType === "TRAINEE_ENTREPRENEUR") discPercent = Number(p.traineeEntrepreneurDiscount || 0);
+
+      const lineBase = qty * price;
+      const lineDiscount = (lineBase * discPercent) / 100;
+
+      billAmount += lineBase;
+      totalDiscount += lineDiscount;
+    }
+
+    // delivery charge (optional: if address present then charge, else 0)
+    let deliveryCharge = 0;
+    if (address) {
+      const slab = await DeliveryCharge.findOne({
+        where: {
+          isActive: true,
+          minAmount: { [Op.lte]: billAmount },
+          [Op.or]: [{ maxAmount: { [Op.gte]: billAmount } }, { maxAmount: null }],
+        },
+        order: [["minAmount", "DESC"]],
+        transaction: t,
+      });
+      deliveryCharge = slab ? Number(slab.charge) : 0;
+    }
+
+    const grandTotal = Math.max(0, Number(billAmount) - Number(totalDiscount) + Number(deliveryCharge));
+
+    // Create order
+    const order = await Order.create(
+      {
+        userId: userId,
+        totalAmount: grandTotal,
+        totalDiscount: Number(totalDiscount.toFixed(2)),
+        deliveryCharge: deliveryCharge,
+        addressId: address ? address.id : null,
+
+        paymentMethod: paymentMethod,            // OFFLINE/CASH/BANK/UPI
+        paymentStatus: "SUCCESS",                // offline means already paid
+        status: markDelivered ? "DELIVERED" : "PAID",
+        deliveredOn: markDelivered ? new Date() : null,
+
+        meta: {
+          offline: true,
+          paymentRef: paymentRef || null,
+          createdByAdminId: req.user.id,
+        },
+      },
+      { transaction: t }
+    );
+
+    // Create order items + reduce stock
+    for (const it of items) {
+      const p = pMap.get(Number(it.productId));
+      const qty = Number(it.qty);
+
+      await OrderItem.create(
+        {
+          orderId: order.id,
+          productId: p.id,
+          price: p.price,
+          qty: qty,
+        },
+        { transaction: t }
+      );
+
+      await p.update({ stockQty: Number(p.stockQty) - qty }, { transaction: t });
+    }
+
+    // ✅ If admin marked delivered, apply spend+unlock+referral release logic same as your status route
+    let spendInfo = null;
+    let sponsorPending = null;
+
+    if (markDelivered) {
+      spendInfo = await addSpendAndUnlockIfNeeded({ userId: order.userId, amount: order.totalAmount, t });
+
+      if (!spendInfo.wasUnlocked && spendInfo.wallet.isUnlocked) {
+        // update userType
+        await User.update({ userType: "ENTREPRENEUR" }, { where: { id: order.userId }, transaction: t });
+
+        const releasedJoin = await tryReleasePendingJoinBonusesForReferred({
+          referredUserId: order.userId,
+          t,
+        });
+
+        await tryReleasePendingPairBonuses(t);
+
+        sponsorPending = { releasedJoin };
+      }
+    }
+
+    await t.commit();
+
+    return res.status(201).json({
+      msg: "Offline order created",
+      orderId: order.id,
+      userId: order.userId,
+      billAmount,
+      totalDiscount: Number(totalDiscount.toFixed(2)),
+      deliveryCharge,
+      grandTotal,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      spendInfo: spendInfo
+        ? { totalSpent: spendInfo.wallet.totalSpent, isUnlocked: spendInfo.wallet.isUnlocked, minSpend: spendInfo.minSpend }
+        : null,
+      sponsorPending,
+    });
+  } catch (e) {
+    await t.rollback();
+    console.error("ADMIN OFFLINE ORDER ERROR =>", e);
+    return res.status(400).json({ msg: e.message });
+  }
+});
 export default router;

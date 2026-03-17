@@ -21,7 +21,7 @@ const Order = sequelize.define(
     },
 
     paymentMethod: {
-      type: DataTypes.ENUM("COD", "WALLET", "RAZORPAY"),
+      type: DataTypes.ENUM("COD", "WALLET", "RAZORPAY", "CASH", "UPI", "BANK", "OFFLINE"),
       allowNull: false,
     },
     totalDiscount: {
