@@ -198,8 +198,11 @@ router.get("/daily-income", auth, async (req, res) => {
   }
 });
 
-// ✅ GET /api/reports/admin/registration-stats?startDate=2026-03-01&endDate=2026-03-17
-// ℹ️  Both params optional — defaults to today (IST) if not provided
+// ✅ GET /api/reports/admin/registration-stats
+// Params (all optional):
+//   ?period=today|week|month|year   → quick shortcuts
+//   ?startDate=2026-03-01&endDate=2026-03-17  → custom range
+//   (no params) → defaults to today
 router.get("/admin/registration-stats", auth, async (req, res) => {
   try {
     // 1. Admin-only access
@@ -208,15 +211,23 @@ router.get("/admin/registration-stats", auth, async (req, res) => {
       return res.status(403).json({ msg: "Access denied. Admins only." });
     }
 
-    // 2. Parse params — default to today (IST) if not provided
-    const zone = "Asia/Kolkata";
+    // 2. Resolve date range — period shortcut OR startDate/endDate OR today
+    const zone     = "Asia/Kolkata";
     const todayIST = DateTime.now().setZone(zone);
+    let start, end;
 
-    const rawStart = req.query.startDate || todayIST.toISODate(); // "2026-03-17"
-    const rawEnd   = req.query.endDate   || todayIST.toISODate(); // "2026-03-17"
-
-    const start = DateTime.fromISO(rawStart, { zone }).startOf("day");
-    const end   = DateTime.fromISO(rawEnd,   { zone }).endOf("day");
+    if (req.query.period) {
+      // ✅ Quick shortcut: ?period=today|week|month|year
+      const { start: s, end: e } = getRangeForPeriod(req.query.period, zone);
+      start = DateTime.fromJSDate(s, { zone }).startOf("day");
+      end   = DateTime.fromJSDate(e, { zone }).minus({ milliseconds: 1 }); // end is exclusive in helper
+    } else {
+      // ✅ Custom range or default today
+      const rawStart = req.query.startDate || todayIST.toISODate();
+      const rawEnd   = req.query.endDate   || todayIST.toISODate();
+      start = DateTime.fromISO(rawStart, { zone }).startOf("day");
+      end   = DateTime.fromISO(rawEnd,   { zone }).endOf("day");
+    }
 
     if (!start.isValid || !end.isValid) {
       return res
