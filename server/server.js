@@ -115,6 +115,9 @@ Product.hasMany(CartItem, { foreignKey: "productId" });
 Order.belongsTo(User, { foreignKey: "userId" });
 User.hasMany(Order, { foreignKey: "userId" });
 
+// Offline order: track which admin created it
+Order.belongsTo(User, { foreignKey: "createdByAdminId", as: "CreatedByAdmin" });
+
 // Order ↔ OrderItem
 Order.hasMany(OrderItem, { foreignKey: "orderId", onDelete: "CASCADE" });
 OrderItem.belongsTo(Order, { foreignKey: "orderId" });

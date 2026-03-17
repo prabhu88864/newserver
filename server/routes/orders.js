@@ -534,6 +534,13 @@ router.get("/admin", auth, isAdmin, async (req, res) => {
           ],
           required: false,
         },
+        {
+          model: User,
+          as: "CreatedByAdmin",
+          attributes: ["id", "name", "role"],
+          required: false,
+          foreignKey: "createdByAdminId",
+        },
       ],
       order: [["createdAt", "DESC"]],
       distinct: true,
@@ -740,11 +747,11 @@ router.post("/admin/offline", auth, async (req, res) => {
         deliveryCharge: deliveryCharge,
         addressId: address ? address.id : null,
 
-        paymentMethod: paymentMethod,            // OFFLINE/CASH/BANK/UPI
-        paymentStatus: "SUCCESS",                // offline means already paid
+        paymentMethod: paymentMethod,
+        paymentStatus: "SUCCESS",
         status: markDelivered ? "DELIVERED" : "PAID",
         deliveredOn: markDelivered ? new Date() : null,
-
+        createdByAdminId: req.user.id,   // ✅ track which admin created this offline order
       },
       { transaction: t }
     );

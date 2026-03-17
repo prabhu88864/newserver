@@ -40,6 +40,8 @@ const Order = sequelize.define(
       defaultValue: 0,
     },
 
+    createdByAdminId: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
+
   },
   { timestamps: true }
 );
