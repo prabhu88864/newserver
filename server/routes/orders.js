@@ -429,10 +429,17 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
         await t.rollback();
         return res.status(400).json({ msg: "Cancelled order cannot be delivered" });
       }
-      await order.update({ status: "DELIVERED", deliveredOn: new Date() }, { transaction: t });
+      await order.update(
+        { status: "DELIVERED", deliveredOn: new Date(), deliveredByAdminId: req.user.id },
+        { transaction: t }
+      );
     } else {
       await order.update(
-        { status: next, deliveredOn: next === "DELIVERED" ? order.deliveredOn : null },
+        {
+          status: next,
+          deliveredOn: next === "DELIVERED" ? order.deliveredOn : null,
+          deliveredByAdminId: next === "DELIVERED" ? order.deliveredByAdminId : null,
+        },
         { transaction: t }
       );
     }
@@ -554,6 +561,13 @@ router.get("/admin", auth, isAdmin, async (req, res) => {
           attributes: ["id", "name", "role"],
           required: false,
           foreignKey: "createdByAdminId",
+        },
+        {
+          model: User,
+          as: "DeliveredByAdmin",
+          attributes: ["id", "name", "role"],
+          required: false,
+          foreignKey: "deliveredByAdminId",
         },
       ],
       order: [["createdAt", "DESC"]],

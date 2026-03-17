@@ -117,6 +117,7 @@ User.hasMany(Order, { foreignKey: "userId" });
 
 // Offline order: track which admin created it
 Order.belongsTo(User, { foreignKey: "createdByAdminId", as: "CreatedByAdmin" });
+Order.belongsTo(User, { foreignKey: "deliveredByAdminId", as: "DeliveredByAdmin" });
 
 // Order ↔ OrderItem
 Order.hasMany(OrderItem, { foreignKey: "orderId", onDelete: "CASCADE" });
