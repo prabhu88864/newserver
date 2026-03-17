@@ -745,11 +745,6 @@ router.post("/admin/offline", auth, async (req, res) => {
         status: markDelivered ? "DELIVERED" : "PAID",
         deliveredOn: markDelivered ? new Date() : null,
 
-        meta: {
-          offline: true,
-          paymentRef: paymentRef || null,
-          createdByAdminId: req.user.id,
-        },
       },
       { transaction: t }
     );
