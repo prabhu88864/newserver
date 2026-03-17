@@ -46,10 +46,8 @@ router.get("/", auth, isAdmin, async (req, res) => {
 
     if (search) {
       where[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } },
-        { phone: { [Op.like]: `%${search}%` } },
-        { userID: { [Op.like]: `%${search}%` } },
+        { name: { [Op.like]: `${search}%` } },
+        { userID: { [Op.like]: `${search}%` } },
       ];
     }
 
