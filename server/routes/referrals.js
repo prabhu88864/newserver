@@ -32,7 +32,7 @@ router.get("/", auth, async (req, res) => {
       const linkData = link.toJSON ? link.toJSON() : link;
       return {
         ...linkData,
-        url: `https://web.mysun.in/register?ref=${link.code}&pos=${link.position
+        url: `https://mysun.in/register?ref=${link.code}&pos=${link.position
           }&by=${encodeURIComponent(req.user.name)}`,
       };
     });

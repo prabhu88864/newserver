@@ -1,7 +1,8 @@
 import express from "express";
 import auth from "../middleware/auth.js";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import { DateTime } from "luxon";
+import { sequelize } from "../config/db.js";
 
 import User from "../models/User.js"; // ✅ ADD THIS
 import Wallet from "../models/Wallet.js";
@@ -194,6 +195,125 @@ router.get("/daily-income", auth, async (req, res) => {
     return res
       .status(500)
       .json({ msg: "Failed to get daily report", err: err.message });
+  }
+});
+
+// ✅ GET /api/reports/admin/registration-stats?startDate=2026-03-01&endDate=2026-03-17
+// ℹ️  Both params optional — defaults to today (IST) if not provided
+router.get("/admin/registration-stats", auth, async (req, res) => {
+  try {
+    // 1. Admin-only access
+    const role = req.user.role;
+    if (!["ADMIN", "MASTER", "STAFF"].includes(role)) {
+      return res.status(403).json({ msg: "Access denied. Admins only." });
+    }
+
+    // 2. Parse params — default to today (IST) if not provided
+    const zone = "Asia/Kolkata";
+    const todayIST = DateTime.now().setZone(zone);
+
+    const rawStart = req.query.startDate || todayIST.toISODate(); // "2026-03-17"
+    const rawEnd   = req.query.endDate   || todayIST.toISODate(); // "2026-03-17"
+
+    const start = DateTime.fromISO(rawStart, { zone }).startOf("day");
+    const end   = DateTime.fromISO(rawEnd,   { zone }).endOf("day");
+
+    if (!start.isValid || !end.isValid) {
+      return res
+        .status(400)
+        .json({ msg: "Invalid date format. Use YYYY-MM-DD." });
+    }
+
+    if (start > end) {
+      return res
+        .status(400)
+        .json({ msg: "startDate must be before or equal to endDate." });
+    }
+
+    const diffDays = end.diff(start, "days").days;
+    if (diffDays > 366) {
+      return res
+        .status(400)
+        .json({ msg: "Date range cannot exceed 366 days." });
+    }
+
+    // 3. Convert IST range → UTC for DB queries
+    const utcStart = start.toUTC().toJSDate();
+    const utcEnd   = end.toUTC().toJSDate();
+
+    // 4. Build full label array — one entry per calendar day in range
+    const labels = [];
+    let cursor = start.startOf("day");
+    const endDay = end.startOf("day");
+    while (cursor <= endDay) {
+      labels.push(cursor.toISODate()); // "2026-03-17"
+      cursor = cursor.plus({ days: 1 });
+    }
+
+    // 5. Run 2 parallel raw SQL queries (IST date grouping via CONVERT_TZ)
+    const [regRows, upgradeRows] = await Promise.all([
+      // Query A: Daily new registrations
+      sequelize.query(
+        `SELECT DATE_FORMAT(CONVERT_TZ(createdAt, '+00:00', '+05:30'), '%Y-%m-%d') AS day,
+                COUNT(*) AS count
+         FROM Users
+         WHERE createdAt >= :utcStart AND createdAt <= :utcEnd
+         GROUP BY day
+         ORDER BY day ASC`,
+        {
+          replacements: { utcStart, utcEnd },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      ),
+
+      // Query B: Daily entrepreneur upgrades (by activationDate)
+      sequelize.query(
+        `SELECT DATE_FORMAT(CONVERT_TZ(activationDate, '+00:00', '+05:30'), '%Y-%m-%d') AS day,
+                COUNT(*) AS count
+         FROM Users
+         WHERE activationDate >= :utcStart AND activationDate <= :utcEnd
+           AND userType = 'ENTREPRENEUR'
+         GROUP BY day
+         ORDER BY day ASC`,
+        {
+          replacements: { utcStart, utcEnd },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      ),
+    ]);
+
+    // 6. Build Maps — r.day is guaranteed "%Y-%m-%d" string → safe Map key
+    const regMap     = new Map(regRows.map((r) => [r.day, Number(r.count)]));
+    const upgradeMap = new Map(upgradeRows.map((r) => [r.day, Number(r.count)]));
+
+    // 7. Map results onto label array — missing days get 0
+    const registrations        = labels.map((d) => regMap.get(d)     || 0);
+    const entrepreneurUpgrades = labels.map((d) => upgradeMap.get(d) || 0);
+
+    const totalRegistrations        = registrations.reduce((a, b) => a + b, 0);
+    const totalEntrepreneurUpgrades = entrepreneurUpgrades.reduce((a, b) => a + b, 0);
+
+    return res.json({
+      labels,
+      datasets: {
+        registrations,
+        entrepreneurUpgrades,
+      },
+      summary: {
+        totalRegistrations,
+        totalEntrepreneurUpgrades,
+        // Always normalized IST YYYY-MM-DD strings
+        dateRange: {
+          from: start.toISODate(),
+          to:   end.toISODate(),
+        },
+      },
+    });
+  } catch (err) {
+    console.error("REGISTRATION STATS ERROR =>", err);
+    return res
+      .status(500)
+      .json({ msg: "Failed to get registration stats", err: err.message });
   }
 });
 
