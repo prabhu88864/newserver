@@ -26,6 +26,7 @@ import Address from "../models/Address.js";
 import Order from "../models/Order.js";
 import OrderItem from "../models/OrderItem.js";
 import Product from "../models/Product.js";
+import optionalAuth from "../middleware/optionalAuth.js";
 
 const router = express.Router();
 
@@ -781,7 +782,7 @@ router.post("/register", (req, res) => {
 // ========================= PLACEMENT REGISTER =========================
 // POST /api/auth/placement-register
 // Body: { name, email, phone, password, parentId, position, userType, ... }
-router.post("/placement-register", auth, (req, res) => {
+router.post("/placement-register", optionalAuth, (req, res) => {
   uploadUserDocs(req, res, async (err) => {
     const t = await sequelize.transaction();
 
