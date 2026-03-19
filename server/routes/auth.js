@@ -971,6 +971,12 @@ router.post("/placement-register", optionalAuth, (req, res) => {
           phone: user.phone,
           referralCode: user.referralCode,
         },
+        placement: {
+          parentId: parentUser.userID,       // enter చేసిన userId
+          parentName: parentUser.name,       // parent user పేరు
+          position: pos,                     // LEFT or RIGHT
+          placedUnderUserID: placedParent.userPkId || parentUser.userID, // actual placed under (spillover తో)
+        },
       });
     } catch (err) {
       await t.rollback();
