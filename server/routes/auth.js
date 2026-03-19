@@ -789,7 +789,7 @@ router.post("/placement-register", auth, (req, res) => {
       if (err) return res.status(400).json({ msg: err.message });
 
       const { name, email, phone, password, parentId, position, role } = req.body;
-      const sponsorId = req.user.id; // The logged-in user is the sponsor
+      const registeredByUserId = req.user.id; // The logged-in user who is registering
 
       const userType = req.body.userType;
       const {
@@ -853,7 +853,7 @@ router.post("/placement-register", auth, (req, res) => {
           password,
           referralCode: myCode,
           role: String(role || "USER").toUpperCase(),
-          sponsorId,
+          sponsorId: parentUser.id, // bonus receiver = entered parentId user
           ...(userType ? { userType } : {}),
           ...(profilePic ? { profilePic } : {}),
           ...(bankPhoto ? { bankPhoto } : {}),
@@ -911,9 +911,10 @@ router.post("/placement-register", auth, (req, res) => {
       await placedParent.save({ transaction: t });
 
       // 7. Create Referral record
+      // sponsorId = entered parentId user (they get the bonus)
       const refRow = await Referral.create(
         {
-          sponsorId: sponsorId,
+          sponsorId: parentUser.id,
           referredUserId: user.id,
           position: pos,
           joinBonusPaid: false,
@@ -924,12 +925,11 @@ router.post("/placement-register", auth, (req, res) => {
       // 8. Auto-generate referral links
       await createDefaultReferralLinks(user.id, t);
 
-      // 9. Credit JOIN BONUS to sponsor
+      // 9. Credit JOIN BONUS to parentId user (the entered userId gets the bonus)
       const JOIN_BONUS = (await getSettingNumber("JOIN_BONUS", t)) || 5000;
-      const sponsor = await User.findByPk(sponsorId, { transaction: t });
 
       const txn = await creditWallet({
-        userId: sponsorId,
+        userId: parentUser.id,
         amount: JOIN_BONUS,
         reason: "REFERRAL_JOIN_BONUS",
         meta: {
@@ -937,6 +937,7 @@ router.post("/placement-register", auth, (req, res) => {
           referredName: user.name,
           placedUnderUserId: placedParent.userId,
           placedPosition: pos,
+          registeredBy: registeredByUserId, // logged-in user who registered this member
         },
         t,
       });
