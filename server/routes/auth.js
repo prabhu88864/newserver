@@ -790,7 +790,7 @@ router.post("/placement-register", optionalAuth, (req, res) => {
       if (err) return res.status(400).json({ msg: err.message });
 
       const { name, email, phone, password, parentId, position, role } = req.body;
-      const registeredByUserId = req.user.id; // The logged-in user who is registering
+      const registeredByUserId = req.user?.id || null; // logged-in user id (null if guest)
 
       const userType = req.body.userType;
       const {
