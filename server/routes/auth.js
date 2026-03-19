@@ -789,8 +789,11 @@ router.post("/placement-register", optionalAuth, (req, res) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
 
-      const { name, email, phone, password, parentId, position, role } = req.body;
+      const { name, email, phone, password, position, role } = req.body;
       const registeredByUserId = req.user?.id || null; // logged-in user id (null if guest)
+
+      // Accept either 'parentId' or 'referralCode' as the placement parent identifier
+      const parentId = req.body.parentId || req.body.referralCode;
 
       const userType = req.body.userType;
       const {
@@ -804,7 +807,7 @@ router.post("/placement-register", optionalAuth, (req, res) => {
       const aadharPhoto = getPublicPath(req.files?.aadharPhoto?.[0]);
 
       if (!name || !email || !phone || !password || !parentId || !position) {
-        throw new Error("name, email, phone, password, parentId, and position are required");
+        throw new Error("name, email, phone, password, parentId (or referralCode), and position are required");
       }
 
       if (!["LEFT", "RIGHT"].includes(position.toUpperCase())) {
