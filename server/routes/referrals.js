@@ -5,12 +5,6 @@ import ReferralLink from "../models/ReferralLink.js";
 
 const router = express.Router();
 
-// ✅ Single place to change the frontend URL
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://mysun.in";
-
-const buildReferralUrl = (code, position, name) =>
-  `${FRONTEND_URL}/register?ref=${code}&pos=${position}&by=${encodeURIComponent(name)}`;
-
 export const createDefaultReferralLinks = async (userId, t = null) => {
   const positions = ["LEFT", "RIGHT"];
   for (const position of positions) {
@@ -38,7 +32,8 @@ router.get("/", auth, async (req, res) => {
       const linkData = link.toJSON ? link.toJSON() : link;
       return {
         ...linkData,
-        url: buildReferralUrl(link.code, link.position, req.user.name),
+        url: `https://mysun.in/register?ref=${link.code}&pos=${link.position
+          }&by=${encodeURIComponent(req.user.name)}`,
       };
     });
 
@@ -66,7 +61,9 @@ router.post("/create", auth, async (req, res) => {
       isActive: true,
     });
 
-    const url = buildReferralUrl(code, position, req.user.name);
+    const url = `https://web.mysun.in/register?ref=${code}&pos=${position}&by=${encodeURIComponent(
+      req.user.name
+    )}`;
 
     return res.json({ msg: "Created", position, referralCode: code, url });
   } catch (err) {
@@ -75,4 +72,3 @@ router.post("/create", auth, async (req, res) => {
 });
 
 export default router;
-

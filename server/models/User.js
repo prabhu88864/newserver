@@ -29,7 +29,10 @@ const User = sequelize.define("User", {
 
   leftCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   rightCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  leftEntCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  rightEntCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   paidPairs: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  unlockedPairsCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }, // specifically for entrepreneurs
   sponsorPaidPairs: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
 
   // Bank Details

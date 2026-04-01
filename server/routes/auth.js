@@ -301,6 +301,9 @@ async function updateUplineCountsAndBonuses({
   newlyJoinedUserId,
   t,
 }) {
+  const newlyJoinedUser = await User.findByPk(newlyJoinedUserId, { transaction: t });
+  const isEnt = newlyJoinedUser?.userType === "ENTREPRENEUR";
+
   const PAIR_BONUS = await getSettingNumber("PAIR_BONUS", t) || 3000;
   let node = await BinaryNode.findOne({
     where: { userId: startParentUserId },
@@ -317,9 +320,13 @@ async function updateUplineCountsAndBonuses({
     if (!uplineUser) break;
 
     // 1) increment counts
-    if (pos === "LEFT")
+    if (pos === "LEFT") {
       uplineUser.leftCount = Number(uplineUser.leftCount || 0) + 1;
-    else uplineUser.rightCount = Number(uplineUser.rightCount || 0) + 1;
+      if (isEnt) uplineUser.leftEntCount = Number(uplineUser.leftEntCount || 0) + 1;
+    } else {
+      uplineUser.rightCount = Number(uplineUser.rightCount || 0) + 1;
+      if (isEnt) uplineUser.rightEntCount = Number(uplineUser.rightEntCount || 0) + 1;
+    }
 
     // 2) store pending entry (exact downline id)
     await PairPending.create(
@@ -506,6 +513,38 @@ async function updateUplineCountsAndBonuses({
     await uplineUser.save({ transaction: t });
     await checkAndGrantAwards({ userId: uplineUser.id, t });
 
+    // ✅ NEW: If we just added an entrepreneur, check if it enables an unlock
+    if (isEnt) {
+      const availablePairs = Math.min(uplineUser.leftEntCount, uplineUser.rightEntCount);
+      const used = Number(uplineUser.unlockedPairsCount || 0);
+
+      if (availablePairs > used) {
+        const moreToUnlock = availablePairs - used;
+        const wallet = await Wallet.findOne({ where: { userId: uplineUser.id }, transaction: t, lock: t.LOCK.UPDATE });
+        if (wallet) {
+          const pendingTxns = await WalletTransaction.findAll({
+            where: { walletId: wallet.id, reason: "PAIR_BONUS", "meta.pending": true },
+            order: [["id", "ASC"]],
+            limit: moreToUnlock,
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+          });
+
+          for (const txn of pendingTxns) {
+            const amt = Number(txn.amount || 0);
+            wallet.lockedBalance = Math.max(0, Number(wallet.lockedBalance || 0) - amt);
+            wallet.balance = Number(wallet.balance || 0) + amt;
+            wallet.totalBalance = Number(wallet.balance) + Number(wallet.lockedBalance);
+            txn.meta = { ...txn.meta, pending: false, unlockedAt: new Date(), unlockedByRegistrationId: newlyJoinedUserId };
+            await txn.save({ transaction: t });
+            uplineUser.unlockedPairsCount = (uplineUser.unlockedPairsCount || 0) + 1;
+          }
+          await wallet.save({ transaction: t });
+          await uplineUser.save({ transaction: t });
+        }
+      }
+    }
+
 
     // move up
     const currentNode = await BinaryNode.findOne({
@@ -520,6 +559,120 @@ async function updateUplineCountsAndBonuses({
       where: { userId: currentNode.parentId },
       transaction: t,
     });
+  }
+}
+
+// Helper for tree traversal in auth.js
+async function getAllBinaryDownlineIds(rootUserId) {
+  let ids = [];
+  let queue = [rootUserId];
+  while (queue.length > 0) {
+    const batch = queue.splice(0, 50);
+    const nodes = await (await import("../models/BinaryNode.js")).default.findAll({
+      where: { userId: { [Op.in]: batch } },
+      attributes: ["userId", "leftChildId", "rightChildId"]
+    });
+    nodes.forEach(n => {
+      ids.push(n.userId);
+      if (n.leftChildId) queue.push(n.leftChildId);
+      if (n.rightChildId) queue.push(n.rightChildId);
+    });
+  }
+  return ids;
+}
+
+/**
+ * ✅ NEW: Triggered when user UPGRADES to ENTREPRENEUR
+ * Increments upline entrepreneur counts and unlocks pending PAIR_BONUS if possible.
+ */
+export async function updateUplineEntrepreneurCounts({ newlyUpgradedUserId, t }) {
+  const bnode = await BinaryNode.findOne({ where: { userId: newlyUpgradedUserId }, transaction: t });
+  if (!bnode || !bnode.parentId) return;
+
+  let pos = bnode.position;
+  let parentId = bnode.parentId;
+
+  while (parentId) {
+    const upline = await User.findByPk(parentId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!upline) break;
+
+    // 1) Increment Ent Count
+    if (pos === "LEFT") upline.leftEntCount = Number(upline.leftEntCount || 0) + 1;
+    else upline.rightEntCount = Number(upline.rightEntCount || 0) + 1;
+    await upline.save({ transaction: t });
+
+    // 2) Check for unlocks
+    const availablePairs = Math.min(upline.leftEntCount, upline.rightEntCount);
+    const used = Number(upline.unlockedPairsCount || 0);
+
+    if (availablePairs > used) {
+      const moreToUnlock = availablePairs - used;
+      const wallet = await Wallet.findOne({ where: { userId: upline.id }, transaction: t, lock: t.LOCK.UPDATE });
+      
+      if (wallet) {
+        const pendingTxns = await WalletTransaction.findAll({
+          where: {
+            walletId: wallet.id,
+            reason: "PAIR_BONUS",
+            "meta.pending": true
+          },
+          order: [["id", "ASC"]],
+          limit: moreToUnlock,
+          transaction: t,
+          lock: t.LOCK.UPDATE,
+        });
+
+        for (const txn of pendingTxns) {
+          const amt = Number(txn.amount || 0);
+          wallet.lockedBalance = Math.max(0, Number(wallet.lockedBalance || 0) - amt);
+          wallet.balance = Number(wallet.balance || 0) + amt;
+          wallet.totalBalance = Number(wallet.balance) + Number(wallet.lockedBalance);
+
+          // ✅ Find the Nth entrepreneur on the OTHER side to show correct names in Wallet
+          const uplineNode = await BinaryNode.findOne({ where: { userId: upline.id }, transaction: t });
+          const otherSideRootId = (pos === "LEFT") ? uplineNode.rightChildId : uplineNode.leftChildId;
+          
+          let otherEntName = "Team Member";
+          if (otherSideRootId) {
+             const otherSideIds = await getAllBinaryDownlineIds(otherSideRootId); // existing helper from reports logic
+             const otherEnt = await User.findOne({
+               where: { id: { [Op.in]: otherSideIds }, userType: 'ENTREPRENEUR' },
+               order: [['activationDate', 'ASC']],
+               offset: used, 
+               transaction: t
+             });
+             if (otherEnt) otherEntName = otherEnt.name;
+          }
+
+          const newlyUpgradedUser = await User.findByPk(newlyUpgradedUserId, { transaction: t });
+          const leftName = (pos === "LEFT") ? newlyUpgradedUser.name : otherEntName;
+          const rightName = (pos === "RIGHT") ? newlyUpgradedUser.name : otherEntName;
+
+          txn.meta = { 
+            ...txn.meta, 
+            pending: false, 
+            unlockedAt: new Date(), 
+            unlockedByUpgradeId: newlyUpgradedUserId,
+            // Update names to reflect actual entrepreneurs
+            pairs: [{
+              ...(txn.meta?.pairs?.[0] || {}),
+              leftUserName: leftName,
+              rightUserName: rightName,
+              isActualUnlockPair: true
+            }]
+          };
+          await txn.save({ transaction: t });
+          upline.unlockedPairsCount = (upline.unlockedPairsCount || 0) + 1;
+        }
+        await wallet.save({ transaction: t });
+        await upline.save({ transaction: t });
+      }
+    }
+
+    const currNode = await BinaryNode.findOne({ where: { userId: parentId }, transaction: t });
+    if (!currNode || !currNode.parentId) break;
+    pos = currNode.position;
+    parentId = currNode.parentId;
   }
 }
 

@@ -59,7 +59,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
 });
 
 // ✅ CREATE (admin) + image (form-data)
-router.post("/", auth, isAdmin, (req, res) => {
+router.post("/", auth, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
@@ -87,7 +87,7 @@ router.post("/", auth, isAdmin, (req, res) => {
 });
 
 // ✅ UPDATE (admin) + image optional
-router.put("/:id", auth, isAdmin, (req, res) => {
+router.put("/:id", auth, (req, res) => {
   uploadSubCategoryImage(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ msg: err.message });
@@ -118,7 +118,7 @@ router.put("/:id", auth, isAdmin, (req, res) => {
 });
 
 // ✅ DELETE (admin)
-router.delete("/:id", auth, isAdmin, async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
   try {
     const row = await SubCategory.findByPk(req.params.id);
     if (!row) return res.status(404).json({ msg: "SubCategory not found" });
@@ -131,4 +131,3 @@ router.delete("/:id", auth, isAdmin, async (req, res) => {
 });
 
 export default router;
-

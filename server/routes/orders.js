@@ -22,6 +22,7 @@ import Address from "../models/Address.js";
 import User from "../models/User.js";
 
 import Referral from "../models/Referral.js";
+import { updateUplineEntrepreneurCounts } from "./auth.js";
 import { getSettingNumber } from "../utils/appSettings.js";
 
 const router = express.Router();
@@ -468,6 +469,8 @@ router.patch("/admin/:id/status", auth, isAdmin, async (req, res) => {
           { userType: "ENTREPRENEUR", activationDate: new Date() },
           { where: { id: order.userId }, transaction: t }
         );
+        // ✅ NEW: Increment upline entrepreneur counts and unlock pairs
+        await updateUplineEntrepreneurCounts({ newlyUpgradedUserId: order.userId, t });
       }
 
       // ✅ 3) ALWAYS try releasing bonuses (even if already unlocked earlier)
@@ -823,6 +826,8 @@ router.post("/admin/offline", auth, async (req, res) => {
           { userType: "ENTREPRENEUR", activationDate: new Date() },
           { where: { id: order.userId }, transaction: t }
         );
+        // ✅ NEW: Increment upline entrepreneur counts and unlock pairs
+        await updateUplineEntrepreneurCounts({ newlyUpgradedUserId: order.userId, t });
 
         const releasedJoinAsReferred = await tryReleasePendingJoinBonusesForReferred({
           referredUserId: order.userId,
