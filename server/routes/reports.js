@@ -10,6 +10,7 @@ import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import PairMatch from "../models/PairMatch.js";
 import PairPending from "../models/PairPending.js";
+import BinaryNode from "../models/BinaryNode.js";
 
 const router = express.Router();
 
@@ -57,6 +58,47 @@ async function getReferralCount(userId, start, end) {
   });
 }
 
+// Fetch all binary downline IDs recursively (BFS)
+async function getAllBinaryDownlineIds(userId) {
+  const downlineIds = [];
+  let queue = [];
+
+  const rootNode = await BinaryNode.findOne({
+    where: { userId },
+    attributes: ["leftChildId", "rightChildId"],
+  });
+
+  if (rootNode) {
+    if (rootNode.leftChildId) queue.push(rootNode.leftChildId);
+    if (rootNode.rightChildId) queue.push(rootNode.rightChildId);
+  }
+
+  while (queue.length > 0) {
+    const batch = queue.splice(0, 50);
+    const nodes = await BinaryNode.findAll({
+      where: { userId: { [Op.in]: batch } },
+      attributes: ["userId", "leftChildId", "rightChildId"],
+    });
+
+    nodes.forEach((n) => {
+      downlineIds.push(n.userId);
+      if (n.leftChildId) queue.push(n.leftChildId);
+      if (n.rightChildId) queue.push(n.rightChildId);
+    });
+  }
+  return downlineIds;
+}
+
+async function getTeamCount(downlineIds, start, end) {
+  if (!downlineIds || downlineIds.length === 0) return 0;
+  return await User.count({
+    where: {
+      id: { [Op.in]: downlineIds },
+      createdAt: { [Op.gte]: start, [Op.lt]: end },
+    },
+  });
+}
+
 const sumAmounts = (txns) =>
   txns.reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
@@ -70,21 +112,33 @@ router.get("/referral-summary", auth, async (req, res) => {
     const userId = req.user.id;
     const periods = ["day", "week", "month", "year"];
 
-    // Optimize: Fetch all counts in parallel instead of sequentially in a loop
+    // 1. Get all downline IDs first
+    const downlineIds = await getAllBinaryDownlineIds(userId);
+
+    // 2. Fetch all counts in parallel
     const counts = await Promise.all(
       periods.map(async (p) => {
         const { start, end } = getRangeForPeriod(p);
-        return { period: p, count: await getReferralCount(userId, start, end) };
+        const [direct, overall] = await Promise.all([
+          getReferralCount(userId, start, end),
+          getTeamCount(downlineIds, start, end),
+        ]);
+        return { period: p, direct, overall };
       })
     );
 
     const summary = {};
-    counts.forEach((c) => (summary[c.period] = c.count));
+    const directSummary = {};
+    counts.forEach((c) => {
+      summary[c.period] = c.overall; // Set main summary to overall as requested
+      directSummary[c.period] = c.direct;
+    });
 
     return res.json({
       userId,
       timezone: "Asia/Kolkata",
-      summary,
+      summary, // Overall team stats
+      directSummary, // Just direct referrals
     });
   } catch (err) {
     console.error("REFERRAL SUMMARY ERROR =>", err);
