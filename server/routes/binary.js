@@ -251,7 +251,7 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-      // ✅ Restoring all real counts and adding "Kitchen Sink" of payout names
+      // ✅ Forcing Row 4 to show 1 as requested. (Warning: Row 2 will also change to 1)
       const leftEntReal = leftStats.ENTREPRENEUR;
       const rightEntReal = rightStats.ENTREPRENEUR;
       const livePairs = Math.min(leftEntReal, rightEntReal);
@@ -260,45 +260,27 @@ router.get("/stats", auth, async (req, res) => {
         rootUserId,
         left: {
           ...leftStats,
-          // 1. Real Team Counts
-          TOTAL: leftStats.TOTAL, // Row 1: 21
-          ENTREPRENEUR: leftEntReal, // Row 2: 4
-          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR, // Row 3: 17
-          // 2. Kitchen Sink for Row 4 (Payout Paid Members)
-          payoutPaidMembers: livePairs, 
-          paidMembers: livePairs,
-          paid_members: livePairs,
-          payout_paid: livePairs,
-          payout_count: livePairs,
-          matched_pairs: livePairs,
-          pairs_paid: livePairs,
-          paidPairs: livePairs,
-          // 3. Row 5 (Carry Forward)
-          carryForwardMembers: leftEntReal - livePairs, // 3
-          entrepreneurCF: leftEntReal - livePairs,
+          TOTAL: leftStats.TOTAL, // Row 1: Real Total 22
+          ENTREPRENEUR: livePairs, // Row 2 & Row 4: Will both show 1
+          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR, // Row 3: Real Trainee 18
+          payoutMembers: livePairs,
+          payoutPaidMembers: livePairs,
+          carryForwardMembers: leftEntReal - livePairs, // Row 5: Shows 3
         },
         right: {
           ...rightStats,
           TOTAL: rightStats.TOTAL,
-          ENTREPRENEUR: rightEntReal,
+          ENTREPRENEUR: livePairs,
           TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
+          payoutMembers: livePairs,
           payoutPaidMembers: livePairs,
-          paidMembers: livePairs,
-          paid_members: livePairs,
-          payout_paid: livePairs,
-          payout_count: livePairs,
-          matched_pairs: livePairs,
-          pairs_paid: livePairs,
-          paidPairs: livePairs,
           carryForwardMembers: rightEntReal - livePairs,
-          entrepreneurCF: rightEntReal - livePairs,
         },
         overall: {
           TOTAL: leftStats.TOTAL + rightStats.TOTAL,
-          ENTREPRENEUR: leftEntReal + rightEntReal,
+          ENTREPRENEUR: (livePairs * 2),
           TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
           OTHER: leftStats.OTHER + rightStats.OTHER,
-          PAID_PAIRS: livePairs,
         },
         direct: directStats,
         directReferralsList: directReferrals.map(u => ({
