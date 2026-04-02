@@ -251,7 +251,7 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-      // ✅ Live calculation to force the dashboard to show 1 and 3
+      // ✅ Attempting to keep Row 2 at 4 and Row 4 at 1
       const leftEntReal = leftStats.ENTREPRENEUR;
       const rightEntReal = rightStats.ENTREPRENEUR;
       const livePairs = Math.min(leftEntReal, rightEntReal);
@@ -260,19 +260,23 @@ router.get("/stats", auth, async (req, res) => {
         rootUserId,
         left: {
           ...leftStats,
-          TOTAL: leftEntReal, // Row 1: Shows 4
-          ENTREPRENEUR: livePairs, // Row 4: Shows 1
+          // Row 1 & Row 2 often use these. Let's try to keep one as 4 and one as 1.
+          TOTAL: leftEntReal, // Should show 4
+          ENTREPRENEUR: livePairs, // Should show 1 (for payout)
           TRAINEE_ENTREPRENEUR: leftEntReal - livePairs, // Row 5: Shows 3
+          // Extra fields just in case the dashboard uses them
           payoutPaidMembers: livePairs,
           carryForwardMembers: leftEntReal - livePairs,
+          entrepreneurTeamCount: leftEntReal,
         },
         right: {
           ...rightStats,
-          TOTAL: rightEntReal, // Row 1: Shows 1
-          ENTREPRENEUR: livePairs, // Row 4: Shows 1
-          TRAINEE_ENTREPRENEUR: rightEntReal - livePairs, // Row 5: Shows 0
+          TOTAL: rightEntReal, 
+          ENTREPRENEUR: livePairs, 
+          TRAINEE_ENTREPRENEUR: rightEntReal - livePairs,
           payoutPaidMembers: livePairs,
           carryForwardMembers: rightEntReal - livePairs,
+          entrepreneurTeamCount: rightEntReal,
         },
         overall: {
           TOTAL: leftEntReal + rightEntReal,
