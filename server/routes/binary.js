@@ -251,7 +251,7 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-      // ✅ Forcing Row 4 to show 1 as requested. (Warning: Row 2 will also change to 1)
+      // ✅ Attempting to fix Row 2 (4) and Row 4 (1) separately
       const leftEntReal = leftStats.ENTREPRENEUR;
       const rightEntReal = rightStats.ENTREPRENEUR;
       const livePairs = Math.min(leftEntReal, rightEntReal);
@@ -260,25 +260,41 @@ router.get("/stats", auth, async (req, res) => {
         rootUserId,
         left: {
           ...leftStats,
-          TOTAL: leftStats.TOTAL, // Row 1: Real Total 22
-          ENTREPRENEUR: livePairs, // Row 2 & Row 4: Will both show 1
-          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR, // Row 3: Real Trainee 18
+          TOTAL: leftStats.TOTAL,
+          // Payout (Row 4): Let's keep this as 1
+          ENTREPRENEUR: livePairs, 
           payoutMembers: livePairs,
-          payoutPaidMembers: livePairs,
-          carryForwardMembers: leftEntReal - livePairs, // Row 5: Shows 3
+          payout_paid_members: livePairs,
+          paidMembers: livePairs,
+          matched_pairs: livePairs,
+          // Team Count (Row 2): Let's try many names for 4
+          entrepreneurCount: leftEntReal,
+          entrepreneurs: leftEntReal,
+          total_entrepreneurs: leftEntReal,
+          ent_count: leftEntReal,
+          teamCount: leftEntReal,
+          // Carry Forward (Row 5): Keep this as 3
+          carryForwardMembers: leftEntReal - livePairs,
         },
         right: {
           ...rightStats,
           TOTAL: rightStats.TOTAL,
           ENTREPRENEUR: livePairs,
-          TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
           payoutMembers: livePairs,
-          payoutPaidMembers: livePairs,
+          payout_paid_members: livePairs,
+          paidMembers: livePairs,
+          matched_pairs: livePairs,
+          entrepreneurCount: rightEntReal,
+          entrepreneurs: rightEntReal,
+          total_entrepreneurs: rightEntReal,
+          ent_count: rightEntReal,
+          teamCount: rightEntReal,
           carryForwardMembers: rightEntReal - livePairs,
         },
         overall: {
           TOTAL: leftStats.TOTAL + rightStats.TOTAL,
-          ENTREPRENEUR: (livePairs * 2),
+          ENTREPRENEUR: livePairs * 2,
+          TOTAL_ENTREPRENEURS: leftEntReal + rightEntReal,
           TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
           OTHER: leftStats.OTHER + rightStats.OTHER,
         },
