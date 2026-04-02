@@ -66,7 +66,7 @@ async function ensureNode(userId, t = null) {
 
 // ✅ Optimized buildTree with DEPTH LIMIT and BATCH QUERIES
 async function buildTreeOptimized(rootUserId, maxDepth = 4) {
-  const depthLimit = Math.min(Math.max(1, maxDepth), 5); // Max 5 levels for UI stability
+  const depthLimit = Math.min(Math.max(1, maxDepth), 10); // Increased to 10 levels for better visibility
 
   const allNodesMap = new Map(); // userId -> BinaryNode
   const allUsersMap = new Map(); // userId -> User
@@ -201,7 +201,7 @@ async function collectSubtreeStats(rootNodeId) {
 router.get("/tree", auth, async (req, res) => {
   try {
     const rootUserId = req.user.id;
-    const depth = parseInt(req.query.depth) || 4;
+    const depth = parseInt(req.query.depth) || 10; // Default to 10 for full visibility
     const tree = await buildTreeOptimized(rootUserId, depth);
     return res.json({ rootUserId, tree });
   } catch (err) {
@@ -229,7 +229,7 @@ router.get("/stats", auth, async (req, res) => {
         where: { sponsorId: rootUserId },
         attributes: ["id", "userID", "name", "userType", "createdAt"],
       }),
-      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount", "userType"] }),
+      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"] }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
       }),
@@ -273,8 +273,10 @@ router.get("/stats", auth, async (req, res) => {
       leftCarryForward: leftCF,
       rightCarryForward: rightCF,
       meta: {
-        leftCount: rootUser?.leftCount || leftStats.TOTAL,
-        rightCount: rootUser?.rightCount || rightStats.TOTAL,
+        leftCount: leftStats.TOTAL,
+        rightCount: rightStats.TOTAL,
+        leftEntCount: rootUser?.leftEntCount || leftStats.ENTREPRENEUR,
+        rightEntCount: rootUser?.rightEntCount || rightStats.ENTREPRENEUR,
       },
     });
   } catch (err) {
