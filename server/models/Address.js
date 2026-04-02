@@ -11,7 +11,7 @@ const Address = sequelize.define(
     pincode: { type: DataTypes.STRING, allowNull: false },
     house: { type: DataTypes.STRING, allowNull: false },
     area: { type: DataTypes.STRING, allowNull: false },
-    landmark: { type: DataTypes.STRING },
+    state: { type: DataTypes.STRING, allowNull: false },
     street: { type: DataTypes.STRING },
     village: { type: DataTypes.STRING },
     mandal: { type: DataTypes.STRING },

@@ -14,8 +14,8 @@ const router = express.Router();
  *   label,
  *   pincode,
  *   house,
- *   area,
- *   landmark?,
+ * *   area,
+ *   state,
  *   receiverFirstName,
  *   receiverLastName?,
  *   receiverPhone,
@@ -31,7 +31,7 @@ router.post("/", auth, async (req, res) => {
       pincode,
       house,
       area,
-      landmark,
+      state,
       street,
       village,
       mandal,
@@ -43,7 +43,7 @@ router.post("/", auth, async (req, res) => {
       isDefault = false,
     } = req.body;
 
-    if (!label || !pincode || !house || !area || !receiverFirstName || !receiverPhone) {
+    if (!label || !pincode || !house || !area || !state || !receiverFirstName || !receiverPhone) {
       return res.status(400).json({ msg: "Required fields missing" });
     }
 
@@ -53,7 +53,7 @@ router.post("/", auth, async (req, res) => {
       pincode: pincode.toString().trim(),
       house: house.toString().trim(),
       area: area.toString().trim(),
-      landmark: landmark ? landmark.toString().trim() : null,
+      state: state.toString().trim(),
       street: street ? street.toString().trim() : null,
       village: village ? village.toString().trim() : null,
       mandal: mandal ? mandal.toString().trim() : null,
@@ -102,7 +102,7 @@ router.get("/", auth, async (req, res) => {
         { pincode: { [Op.like]: `%${search}%` } },
         { house: { [Op.like]: `%${search}%` } },
         { area: { [Op.like]: `%${search}%` } },
-        { landmark: { [Op.like]: `%${search}%` } },
+        { state: { [Op.like]: `%${search}%` } },
         { street: { [Op.like]: `%${search}%` } },
         { village: { [Op.like]: `%${search}%` } },
         { mandal: { [Op.like]: `%${search}%` } },
@@ -208,7 +208,7 @@ router.put("/:id", auth, async (req, res) => {
       "pincode",
       "house",
       "area",
-      "landmark",
+      "state",
       "street",
       "village",
       "mandal",
@@ -317,7 +317,7 @@ router.delete("/:id", auth, async (req, res) => {
  *   isActive=true/false (default true)
  *
  * ✅ search will match:
- *   - address fields: label, pincode, house, area, landmark, receiver..., phone
+ *   - address fields: label, pincode, house, area, state, receiver..., phone
  *   - user fields: name, email, phone
  */
 router.get("/admin/all", auth, isAdmin, async (req, res) => {
@@ -353,7 +353,7 @@ router.get("/admin/all", auth, isAdmin, async (req, res) => {
         { pincode: { [Op.like]: `%${search}%` } },
         { house: { [Op.like]: `%${search}%` } },
         { area: { [Op.like]: `%${search}%` } },
-        { landmark: { [Op.like]: `%${search}%` } },
+        { state: { [Op.like]: `%${search}%` } },
         { street: { [Op.like]: `%${search}%` } },
         { village: { [Op.like]: `%${search}%` } },
         { mandal: { [Op.like]: `%${search}%` } },
