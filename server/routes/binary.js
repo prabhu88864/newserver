@@ -255,17 +255,21 @@ router.get("/stats", auth, async (req, res) => {
       rootUserId,
       left: {
         ...leftStats,
+        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard to show pairs here
+        TOTAL_ENTREPRENEURS: leftStats.ENTREPRENEUR,
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         carryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
       },
       right: {
         ...rightStats,
+        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard to show pairs here
+        TOTAL_ENTREPRENEURS: rightStats.ENTREPRENEUR,
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         carryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
       },
       overall: {
         TOTAL: leftStats.TOTAL + rightStats.TOTAL,
-        ENTREPRENEUR: leftStats.ENTREPRENEUR + rightStats.ENTREPRENEUR,
+        ENTREPRENEUR: (rootUser?.unlockedPairsCount || 0) * 2, // Total paid members in tree
         TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
         OTHER: leftStats.OTHER + rightStats.OTHER,
       },
@@ -283,9 +287,8 @@ router.get("/stats", auth, async (req, res) => {
       meta: {
         leftCount: leftStats.TOTAL,
         rightCount: rightStats.TOTAL,
-        leftEntCount: rootUser?.leftEntCount || leftStats.ENTREPRENEUR,
-        rightEntCount: rootUser?.rightEntCount || rightStats.ENTREPRENEUR,
-        // ✅ Entrepreneur Payout Stats
+        leftEntCount: leftStats.ENTREPRENEUR, // Keeping the real total here
+        rightEntCount: rightStats.ENTREPRENEUR,
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         leftCarryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
         rightCarryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
