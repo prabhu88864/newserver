@@ -251,50 +251,55 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-    return res.json({
-      rootUserId,
-      left: {
-        ...leftStats,
-        TOTAL: leftStats.ENTREPRENEUR, // Force dashboard Row 1 to show 4
-        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard Row 4 to show 1
-        TOTAL_TEAM_REAL: leftStats.TOTAL, // Save the real 21 if needed
-        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
-        carryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
-      },
-      right: {
-        ...rightStats,
-        TOTAL: rightStats.ENTREPRENEUR, // Force dashboard Row 1 to show 1
-        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard Row 4 to show 1
-        TOTAL_TEAM_REAL: rightStats.TOTAL, // Save the real 7 if needed
-        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
-        carryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
-      },
-      overall: {
-        TOTAL: leftStats.ENTREPRENEUR + rightStats.ENTREPRENEUR, // Overall Entrepreneurs
-        ENTREPRENEUR: (rootUser?.unlockedPairsCount || 0) * 2,
-        TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
-        OTHER: leftStats.OTHER + rightStats.OTHER,
-      },
-      direct: directStats,
-      directReferralsList: directReferrals.map(u => ({
-        id: u.id,
-        userID: u.userID,
-        name: u.name,
-        userType: u.userType,
-        joinedAt: u.createdAt,
-      })),
-      totalPairs: rootUser?.userType === "ENTREPRENEUR" ? (rootUser?.paidPairs || 0) : 0,
-      leftCarryForward: leftCF,
-      rightCarryForward: rightCF,
-      meta: {
-        leftCount: leftStats.TOTAL,
-        rightCount: rightStats.TOTAL,
-        leftEntCount: leftStats.ENTREPRENEUR,
-        rightEntCount: rightStats.ENTREPRENEUR,
-        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
-        leftCarryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
-        rightCarryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
-      },
+      // ✅ Live calculation to force the dashboard to show 1 and 3
+      const leftEntReal = leftStats.ENTREPRENEUR;
+      const rightEntReal = rightStats.ENTREPRENEUR;
+      const livePairs = Math.min(leftEntReal, rightEntReal);
+
+      return res.json({
+        rootUserId,
+        left: {
+          ...leftStats,
+          TOTAL: leftEntReal, // Row 1: Shows 4
+          ENTREPRENEUR: livePairs, // Row 4: Shows 1
+          TRAINEE_ENTREPRENEUR: leftEntReal - livePairs, // Row 5: Shows 3
+          payoutPaidMembers: livePairs,
+          carryForwardMembers: leftEntReal - livePairs,
+        },
+        right: {
+          ...rightStats,
+          TOTAL: rightEntReal, // Row 1: Shows 1
+          ENTREPRENEUR: livePairs, // Row 4: Shows 1
+          TRAINEE_ENTREPRENEUR: rightEntReal - livePairs, // Row 5: Shows 0
+          payoutPaidMembers: livePairs,
+          carryForwardMembers: rightEntReal - livePairs,
+        },
+        overall: {
+          TOTAL: leftEntReal + rightEntReal,
+          ENTREPRENEUR: livePairs * 2,
+          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
+          OTHER: leftStats.OTHER + rightStats.OTHER,
+        },
+        direct: directStats,
+        directReferralsList: directReferrals.map(u => ({
+          id: u.id,
+          userID: u.userID,
+          name: u.name,
+          userType: u.userType,
+          joinedAt: u.createdAt,
+        })),
+        totalPairs: livePairs,
+        leftCarryForward: leftEntReal - livePairs,
+        rightCarryForward: rightEntReal - livePairs,
+        meta: {
+          leftCount: leftStats.TOTAL,
+          rightCount: rightStats.TOTAL,
+          leftEntCount: leftEntReal,
+          rightEntCount: rightEntReal,
+          payoutPaidMembers: livePairs,
+          leftCarryForwardMembers: leftEntReal - livePairs,
+          rightCarryForwardMembers: rightEntReal - livePairs,
+        },
     });
   } catch (err) {
     console.error("TREE STATS ERROR =>", err);
