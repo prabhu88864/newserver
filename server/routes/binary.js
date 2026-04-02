@@ -66,7 +66,7 @@ async function ensureNode(userId, t = null) {
 
 // ✅ Optimized buildTree with DEPTH LIMIT and BATCH QUERIES
 async function buildTreeOptimized(rootUserId, maxDepth = 4) {
-  const depthLimit = Math.min(Math.max(1, maxDepth), 10); // Increased to 10 levels for better visibility
+  const depthLimit = Math.min(Math.max(1, maxDepth), 100); // Supports up to 100 levels now!
 
   const allNodesMap = new Map(); // userId -> BinaryNode
   const allUsersMap = new Map(); // userId -> User
@@ -277,6 +277,10 @@ router.get("/stats", auth, async (req, res) => {
         rightCount: rightStats.TOTAL,
         leftEntCount: rootUser?.leftEntCount || leftStats.ENTREPRENEUR,
         rightEntCount: rootUser?.rightEntCount || rightStats.ENTREPRENEUR,
+        // ✅ Entrepreneur Payout Stats
+        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
+        leftCarryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
+        rightCarryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
       },
     });
   } catch (err) {
