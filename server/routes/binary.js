@@ -255,21 +255,23 @@ router.get("/stats", auth, async (req, res) => {
       rootUserId,
       left: {
         ...leftStats,
-        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard to show pairs here
-        TOTAL_ENTREPRENEURS: leftStats.ENTREPRENEUR,
+        TOTAL: leftStats.ENTREPRENEUR, // Force dashboard Row 1 to show 4
+        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard Row 4 to show 1
+        TOTAL_TEAM_REAL: leftStats.TOTAL, // Save the real 21 if needed
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         carryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
       },
       right: {
         ...rightStats,
-        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard to show pairs here
-        TOTAL_ENTREPRENEURS: rightStats.ENTREPRENEUR,
+        TOTAL: rightStats.ENTREPRENEUR, // Force dashboard Row 1 to show 1
+        ENTREPRENEUR: rootUser?.unlockedPairsCount || 0, // Force dashboard Row 4 to show 1
+        TOTAL_TEAM_REAL: rightStats.TOTAL, // Save the real 7 if needed
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         carryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
       },
       overall: {
-        TOTAL: leftStats.TOTAL + rightStats.TOTAL,
-        ENTREPRENEUR: (rootUser?.unlockedPairsCount || 0) * 2, // Total paid members in tree
+        TOTAL: leftStats.ENTREPRENEUR + rightStats.ENTREPRENEUR, // Overall Entrepreneurs
+        ENTREPRENEUR: (rootUser?.unlockedPairsCount || 0) * 2,
         TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
         OTHER: leftStats.OTHER + rightStats.OTHER,
       },
@@ -287,7 +289,7 @@ router.get("/stats", auth, async (req, res) => {
       meta: {
         leftCount: leftStats.TOTAL,
         rightCount: rightStats.TOTAL,
-        leftEntCount: leftStats.ENTREPRENEUR, // Keeping the real total here
+        leftEntCount: leftStats.ENTREPRENEUR,
         rightEntCount: rightStats.ENTREPRENEUR,
         payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
         leftCarryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
