@@ -259,8 +259,13 @@ router.get("/placement-preview", async (req, res) => {
     }
 
     // 1. Find the Sponsor (The ID entered in the form)
+    let sponsorWhere = { userID: sponsorId };
+    if (/^\d+$/.test(sponsorId)) {
+      sponsorWhere = { [Op.or]: [{ id: sponsorId }, { userID: sponsorId }] };
+    }
+
     const sponsor = await User.findOne({
-      where: { userID: sponsorId },
+      where: sponsorWhere,
       attributes: ["id", "userID", "name"],
     });
 
@@ -969,9 +974,14 @@ router.post("/placement-register", optionalAuth, (req, res) => {
 
       const pos = position.toUpperCase();
 
-      // 1. Find the actual placement parent using spillover logic (go down the selected position until empty)
+      // 1. Find the actual placement parent
+      let parentWhere = { userID: parentId };
+      if (/^\d+$/.test(parentId)) {
+        parentWhere = { [Op.or]: [{ id: parentId }, { userID: parentId }] };
+      }
+
       const parentUser = await User.findOne({
-        where: { userID: parentId },
+        where: parentWhere,
         transaction: t,
       });
 

@@ -253,8 +253,16 @@ router.get("/stats", auth, async (req, res) => {
 
     return res.json({
       rootUserId,
-      left: leftStats,
-      right: rightStats,
+      left: {
+        ...leftStats,
+        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
+        carryForwardMembers: Math.max(0, (rootUser?.leftEntCount || leftStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
+      },
+      right: {
+        ...rightStats,
+        payoutPaidMembers: rootUser?.unlockedPairsCount || 0,
+        carryForwardMembers: Math.max(0, (rootUser?.rightEntCount || rightStats.ENTREPRENEUR) - (rootUser?.unlockedPairsCount || 0)),
+      },
       overall: {
         TOTAL: leftStats.TOTAL + rightStats.TOTAL,
         ENTREPRENEUR: leftStats.ENTREPRENEUR + rightStats.ENTREPRENEUR,
