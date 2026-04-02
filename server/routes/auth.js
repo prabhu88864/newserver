@@ -259,13 +259,8 @@ router.get("/placement-preview", async (req, res) => {
     }
 
     // 1. Find the Sponsor (The ID entered in the form)
-    let sponsorWhere = { userID: sponsorId };
-    if (/^\d+$/.test(sponsorId)) {
-      sponsorWhere = { [Op.or]: [{ id: sponsorId }, { userID: sponsorId }] };
-    }
-
     const sponsor = await User.findOne({
-      where: sponsorWhere,
+      where: { userID: sponsorId },
       attributes: ["id", "userID", "name"],
     });
 
@@ -613,7 +608,7 @@ export async function updateUplineEntrepreneurCounts({ newlyUpgradedUserId, t })
     if (availablePairs > used) {
       const moreToUnlock = availablePairs - used;
       const wallet = await Wallet.findOne({ where: { userId: upline.id }, transaction: t, lock: t.LOCK.UPDATE });
-      
+
       if (wallet) {
         const pendingTxns = await WalletTransaction.findAll({
           where: {
@@ -636,27 +631,27 @@ export async function updateUplineEntrepreneurCounts({ newlyUpgradedUserId, t })
           // ✅ Find the Nth entrepreneur on the OTHER side to show correct names in Wallet
           const uplineNode = await BinaryNode.findOne({ where: { userId: upline.id }, transaction: t });
           const otherSideRootId = (pos === "LEFT") ? uplineNode.rightChildId : uplineNode.leftChildId;
-          
+
           let otherEntName = "Team Member";
           if (otherSideRootId) {
-             const otherSideIds = await getAllBinaryDownlineIds(otherSideRootId); // existing helper from reports logic
-             const otherEnt = await User.findOne({
-               where: { id: { [Op.in]: otherSideIds }, userType: 'ENTREPRENEUR' },
-               order: [['activationDate', 'ASC']],
-               offset: used, 
-               transaction: t
-             });
-             if (otherEnt) otherEntName = otherEnt.name;
+            const otherSideIds = await getAllBinaryDownlineIds(otherSideRootId); // existing helper from reports logic
+            const otherEnt = await User.findOne({
+              where: { id: { [Op.in]: otherSideIds }, userType: 'ENTREPRENEUR' },
+              order: [['activationDate', 'ASC']],
+              offset: used,
+              transaction: t
+            });
+            if (otherEnt) otherEntName = otherEnt.name;
           }
 
           const newlyUpgradedUser = await User.findByPk(newlyUpgradedUserId, { transaction: t });
           const leftName = (pos === "LEFT") ? newlyUpgradedUser.name : otherEntName;
           const rightName = (pos === "RIGHT") ? newlyUpgradedUser.name : otherEntName;
 
-          txn.meta = { 
-            ...txn.meta, 
-            pending: false, 
-            unlockedAt: new Date(), 
+          txn.meta = {
+            ...txn.meta,
+            pending: false,
+            unlockedAt: new Date(),
             unlockedByUpgradeId: newlyUpgradedUserId,
             // Update names to reflect actual entrepreneurs
             pairs: [{
@@ -974,14 +969,9 @@ router.post("/placement-register", optionalAuth, (req, res) => {
 
       const pos = position.toUpperCase();
 
-      // 1. Find the actual placement parent
-      let parentWhere = { userID: parentId };
-      if (/^\d+$/.test(parentId)) {
-        parentWhere = { [Op.or]: [{ id: parentId }, { userID: parentId }] };
-      }
-
+      // 1. Find the actual placement parent using spillover logic (go down the selected position until empty)
       const parentUser = await User.findOne({
-        where: parentWhere,
+        where: { userID: parentId },
         transaction: t,
       });
 
