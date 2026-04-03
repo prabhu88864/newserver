@@ -154,10 +154,20 @@ router.get("/transactions", auth, async (req, res) => {
     const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
     if (!wallet) return res.json([]);
 
-    const { startDate, endDate, date, today, limit: limitQuery } = req.query;
+    const { startDate, endDate, date, today, limit: limitQuery, status } = req.query;
     const limit = Math.min(Number(limitQuery) || 50, 1000);
 
     const where = { walletId: wallet.id };
+
+    // ✅ Filter by Locked/Unlocked Status
+    if (status === "locked") {
+      where["meta.pending"] = true;
+    } else if (status === "unlocked") {
+      where[Op.or] = [
+        { "meta.pending": false },
+        { "meta.pending": { [Op.is]: null } }
+      ];
+    }
 
     // ✅ Filter by Date
     if (today === "true") {
