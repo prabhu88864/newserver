@@ -159,17 +159,6 @@ router.get("/transactions", auth, async (req, res) => {
 
     const where = { walletId: wallet.id };
 
-    // ✅ Filter by Locked/Unlocked Status
-    if (status === "locked") {
-      where.meta = { pending: true };
-    } else if (status === "unlocked") {
-      where[Op.or] = [
-        { meta: { pending: false } },
-        { meta: { pending: { [Op.is]: null } } },
-        { meta: { [Op.is]: null } }
-      ];
-    }
-
     // ✅ Filter by Date
     if (today === "true") {
       const startOfToday = new Date();
@@ -211,7 +200,15 @@ router.get("/transactions", auth, async (req, res) => {
       return t;
     });
 
-    res.json(out);
+    // ✅ Filter by Locked/Unlocked Status in Memory (More stable for JSON fields)
+    let filtered = out;
+    if (status === "locked") {
+      filtered = out.filter(t => t.meta?.pending === true);
+    } else if (status === "unlocked") {
+      filtered = out.filter(t => t.meta?.pending !== true);
+    }
+
+    res.json(filtered);
   } catch (err) {
     console.error("GET WALLET TXNS ERROR =>", err);
     res.status(500).json({ msg: err.message });
