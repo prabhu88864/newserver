@@ -161,11 +161,12 @@ router.get("/transactions", auth, async (req, res) => {
 
     // ✅ Filter by Locked/Unlocked Status
     if (status === "locked") {
-      where["meta.pending"] = true;
+      where.meta = { pending: true };
     } else if (status === "unlocked") {
       where[Op.or] = [
-        { "meta.pending": false },
-        { "meta.pending": { [Op.is]: null } }
+        { meta: { pending: false } },
+        { meta: { pending: { [Op.is]: null } } },
+        { meta: { [Op.is]: null } }
       ];
     }
 
