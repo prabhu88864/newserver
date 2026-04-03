@@ -1,4 +1,5 @@
 import express from "express";
+import { Op } from "sequelize";
 import auth from "../middleware/auth.js";
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
