@@ -149,26 +149,61 @@ router.post("/topup", auth, async (req, res) => {
 GET /api/wallet/transactions
 */
 router.get("/transactions", auth, async (req, res) => {
-  const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-  if (!wallet) return res.json([]);
+  try {
+    const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+    if (!wallet) return res.json([]);
 
-  const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const { startDate, endDate, date, today, limit: limitQuery } = req.query;
+    const limit = Math.min(Number(limitQuery) || 50, 1000);
 
-  const txns = await WalletTransaction.findAll({
-    where: { walletId: wallet.id },
-    order: [["createdAt", "DESC"]],
-    limit: limit,
-  });
+    const where = { walletId: wallet.id };
 
-  const out = txns.map((row) => {
-    const t = row.toJSON();
-    if (typeof t.meta === "string") {
-      try { t.meta = JSON.parse(t.meta); } catch { }
+    // ✅ Filter by Date
+    if (today === "true") {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      where.createdAt = { [Op.between]: [startOfToday, endOfToday] };
+    } else if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+
+      where.createdAt = { [Op.between]: [start, end] };
+    } else if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      where.createdAt = { [Op.between]: [start, end] };
     }
-    return t;
-  });
 
-  res.json(out);
+    const txns = await WalletTransaction.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit: limit,
+    });
+
+    const out = txns.map((row) => {
+      const t = row.toJSON();
+      if (typeof t.meta === "string") {
+        try { t.meta = JSON.parse(t.meta); } catch { }
+      }
+      return t;
+    });
+
+    res.json(out);
+  } catch (err) {
+    console.error("GET WALLET TXNS ERROR =>", err);
+    res.status(500).json({ msg: err.message });
+  }
 });
 
 

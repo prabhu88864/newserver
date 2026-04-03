@@ -708,11 +708,12 @@ router.post("/register", (req, res) => {
       }
 
       // prevent duplicates
-      const existsEmail = await User.findOne({ where: { email }, transaction: t });
-      if (existsEmail) throw new Error("Email already exists");
+      // 7 accounts limit per email and phone
+      const emailCount = await User.count({ where: { email }, transaction: t });
+      if (emailCount >= 7) throw new Error("Email already reached its 7-account limit");
 
-      const existsPhone = await User.findOne({ where: { phone }, transaction: t });
-      if (existsPhone) throw new Error("Phone already exists");
+      const phoneCount = await User.count({ where: { phone }, transaction: t });
+      if (phoneCount >= 7) throw new Error("Phone number already reached its 7-account limit");
 
       // unique referralCode
       let myCode = generateReferralCode();
@@ -987,11 +988,12 @@ router.post("/placement-register", optionalAuth, (req, res) => {
       });
 
       // 2. Prevent duplicates
-      const existsEmail = await User.findOne({ where: { email }, transaction: t });
-      if (existsEmail) throw new Error("Email already exists");
+      // 7 accounts limit per email and phone
+      const emailCount = await User.count({ where: { email }, transaction: t });
+      if (emailCount >= 7) throw new Error("Email already reached its 7-account limit");
 
-      const existsPhone = await User.findOne({ where: { phone }, transaction: t });
-      if (existsPhone) throw new Error("Phone already exists");
+      const phoneCount = await User.count({ where: { phone }, transaction: t });
+      if (phoneCount >= 7) throw new Error("Phone number already reached its 7-account limit");
 
       // 3. Unique referralCode
       let myCode = generateReferralCode();
