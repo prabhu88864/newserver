@@ -1,5 +1,5 @@
 import express from "express";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import auth from "../middleware/auth.js";
 import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
@@ -94,6 +94,13 @@ router.get("/", auth, async (req, res) => {
       })
       .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
+    const totalEarned = txns
+      .filter((t) => {
+        const m = typeof t.meta === "string" ? JSON.parse(t.meta || "{}") : (t.meta || {});
+        return m.pending !== true && ["REFERRAL_JOIN_BONUS", "PAIR_BONUS", "DOWNLINE_PAIR_BONUS"].includes(t.reason);
+      })
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
 
     const availableBalance = Number(wallet.balance || 0);
 
@@ -102,6 +109,7 @@ router.get("/", auth, async (req, res) => {
       userId: wallet.userId,
       balance: availableBalance,            // ✅ usable
       lockedBalance,                        // ✅ pending
+      totalEarned,                          // ✅ Total Earnings (Bonuses)
       totalBalance: availableBalance + lockedBalance, // ✅ show only
       totalSpent: Number(wallet.totalSpent || 0),
       isUnlocked: !!wallet.isUnlocked,
@@ -155,9 +163,20 @@ router.get("/transactions", auth, async (req, res) => {
     if (!wallet) return res.json([]);
 
     const { startDate, endDate, date, today, limit: limitQuery, status } = req.query;
-    const limit = Math.min(Number(limitQuery) || 50, 1000);
+    const limit = Math.min(Number(limitQuery) || 50, 2000); // increase default limit for better filtering
 
     const where = { walletId: wallet.id };
+
+    // ✅ Filter by Locked/Unlocked Status on DB side using safe syntax
+    if (status === "locked") {
+      where[Op.and] = [
+        Sequelize.literal("JSON_EXTRACT(meta, '$.pending') = true")
+      ];
+    } else if (status === "unlocked") {
+      where[Op.and] = [
+        Sequelize.literal("(JSON_EXTRACT(meta, '$.pending') = false OR JSON_EXTRACT(meta, '$.pending') IS NULL OR meta IS NULL)")
+      ];
+    }
 
     // ✅ Filter by Date
     if (today === "true") {
@@ -200,15 +219,7 @@ router.get("/transactions", auth, async (req, res) => {
       return t;
     });
 
-    // ✅ Filter by Locked/Unlocked Status in Memory (More stable for JSON fields)
-    let filtered = out;
-    if (status === "locked") {
-      filtered = out.filter(t => t.meta?.pending === true);
-    } else if (status === "unlocked") {
-      filtered = out.filter(t => t.meta?.pending !== true);
-    }
-
-    res.json(filtered);
+    res.json(out);
   } catch (err) {
     console.error("GET WALLET TXNS ERROR =>", err);
     res.status(500).json({ msg: err.message });

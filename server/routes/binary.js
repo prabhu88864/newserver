@@ -251,28 +251,28 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-      // ✅ Only fixing Row 2 to show 4. Keeping payout in separate fields.
+      // ✅ Use actual paid pairs from rootUser and carry forward from PairPending counts
       const leftEntReal = leftStats.ENTREPRENEUR;
       const rightEntReal = rightStats.ENTREPRENEUR;
-      const livePairs = Math.min(leftEntReal, rightEntReal);
+      const paidPairsCount = Number(rootUser.paidPairs || 0);
 
       return res.json({
         rootUserId,
         left: {
           ...leftStats,
           TOTAL: leftStats.TOTAL,
-          ENTREPRENEUR: leftEntReal, // Should show 4 correctly now
+          ENTREPRENEUR: leftEntReal, 
           TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
-          payoutPaidMembers: livePairs, // Row 4 (Should be 1)
-          carryForwardMembers: leftEntReal - livePairs, // Row 5 (Should be 3)
+          payoutPaidMembers: paidPairsCount, 
+          carryForwardMembers: leftCF, 
         },
         right: {
           ...rightStats,
           TOTAL: rightStats.TOTAL,
           ENTREPRENEUR: rightEntReal,
           TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
-          payoutPaidMembers: livePairs,
-          carryForwardMembers: rightEntReal - livePairs,
+          payoutPaidMembers: paidPairsCount,
+          carryForwardMembers: rightCF,
         },
         overall: {
           TOTAL: leftStats.TOTAL + rightStats.TOTAL,
@@ -288,17 +288,17 @@ router.get("/stats", auth, async (req, res) => {
           userType: u.userType,
           joinedAt: u.createdAt,
         })),
-        totalPairs: livePairs,
-        leftCarryForward: leftEntReal - livePairs,
-        rightCarryForward: rightEntReal - livePairs,
+        totalPairs: paidPairsCount,
+        leftCarryForward: leftCF,
+        rightCarryForward: rightCF,
         meta: {
           leftCount: leftStats.TOTAL,
           rightCount: rightStats.TOTAL,
           leftEntCount: leftEntReal,
           rightEntCount: rightEntReal,
-          payoutPaidMembers: livePairs,
-          leftCarryForwardMembers: leftEntReal - livePairs,
-          rightCarryForwardMembers: rightEntReal - livePairs,
+          payoutPaidMembers: paidPairsCount,
+          leftCarryForwardMembers: leftCF,
+          rightCarryForwardMembers: rightCF,
         },
     });
   } catch (err) {
