@@ -6,6 +6,7 @@ import { Op } from "sequelize";
 import User from "../models/User.js";
 import BinaryNode from "../models/BinaryNode.js";
 import PairPending from "../models/PairPending.js";
+import PairMatch from "../models/PairMatch.js";
 
 const router = express.Router();
 
