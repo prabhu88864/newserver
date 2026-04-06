@@ -35,8 +35,9 @@ import ReferralEdge from "./models/ReferralEdge.js";
 import referralTreeRoutes from "./routes/referralTree.js";
 import settingsRoutes from "./routes/settings.js";
 import AppSetting from "./models/AppSetting.js";
-import PairPending from "./models/PairPending.js";
 import PairMatch from "./models/PairMatch.js";
+import "./models/PairPending.js";
+import "./models/PairMatch.js";
 import reportsRoutes from "./routes/reports.js";
 import pairsRoutes from "./routes/pairs.js";
 import withdrawalRoutes from "./routes/withdrawals.js";
@@ -164,13 +165,6 @@ SubCategory.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
 User.belongsTo(User, { foreignKey: "sponsorId", as: "sponsor" });
 User.hasMany(User, { foreignKey: "sponsorId", as: "referrals" });
-
-// Pair associations
-PairPending.belongsTo(User, { foreignKey: "uplineUserId", as: "upline" });
-PairPending.belongsTo(User, { foreignKey: "downlineUserId", as: "downline" });
-PairMatch.belongsTo(User, { foreignKey: "uplineUserId", as: "upline" });
-PairMatch.belongsTo(User, { foreignKey: "leftUserId", as: "leftUser" });
-PairMatch.belongsTo(User, { foreignKey: "rightUserId", as: "rightUser" });
 
 (async () => {
   try {

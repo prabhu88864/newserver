@@ -221,47 +221,20 @@ router.get("/stats", auth, async (req, res) => {
 
     if (!rootNode) return res.status(404).json({ msg: "Binary tree not initialized" });
 
-    const [
-      leftStats,
-      rightStats,
-      directReferrals,
-      rootUser,
-      leftCF,
-      rightCF,
-      leftPaid,
-      rightPaid,
-      leftFlushed,
-      rightFlushed,
-    ] = await Promise.all([
+    // Use optimized batch collector
+    const [leftStats, rightStats, directReferrals, rootUser, leftCF, rightCF] = await Promise.all([
       collectSubtreeStats(rootNode.leftChildId),
       collectSubtreeStats(rootNode.rightChildId),
       User.findAll({
         where: { sponsorId: rootUserId },
         attributes: ["id", "userID", "name", "userType", "createdAt"],
       }),
-      User.findByPk(rootUserId, {
-        attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"],
-      }),
-      // Carry Forward (unused)
+      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"] }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
       }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
-      }),
-      // Successful Payouts (Matched but not Flushed)
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: false },
-      }),
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: true, isFlushed: false },
-      }),
-      // Flushed Pairs (matched but not paid due to ceiling)
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: true },
-      }),
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: true, isFlushed: true },
       }),
     ]);
 
@@ -278,60 +251,55 @@ router.get("/stats", auth, async (req, res) => {
       else directStats.OTHER++;
     });
 
-      // ✅ Use actual paid pairs from rootUser and carry forward from PairPending counts
-      const leftEntReal = leftStats.ENTREPRENEUR;
-      const rightEntReal = rightStats.ENTREPRENEUR;
-      const paidPairsCount = Number(rootUser.paidPairs || 0);
+    // ✅ Use actual paid pairs from rootUser and carry forward from PairPending counts
+    const leftEntReal = leftStats.ENTREPRENEUR;
+    const rightEntReal = rightStats.ENTREPRENEUR;
+    const paidPairsCount = Number(rootUser.paidPairs || 0);
 
-      return res.json({
-        rootUserId,
-        left: {
-          ...leftStats,
-          TOTAL: leftStats.TOTAL,
-          ENTREPRENEUR: leftEntReal, 
-          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
-          payoutPaidMembers: leftPaid, 
-          carryForwardMembers: leftCF, 
-          flushedMembers: leftFlushed,
-        },
-        right: {
-          ...rightStats,
-          TOTAL: rightStats.TOTAL,
-          ENTREPRENEUR: rightEntReal,
-          TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
-          payoutPaidMembers: rightPaid,
-          carryForwardMembers: rightCF,
-          flushedMembers: rightFlushed,
-        },
-        overall: {
-          TOTAL: leftStats.TOTAL + rightStats.TOTAL,
-          ENTREPRENEUR: leftEntReal + rightEntReal,
-          TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
-          OTHER: leftStats.OTHER + rightStats.OTHER,
-        },
-        direct: directStats,
-        directReferralsList: directReferrals.map(u => ({
-          id: u.id,
-          userID: u.userID,
-          name: u.name,
-          userType: u.userType,
-          joinedAt: u.createdAt,
-        })),
-        totalPairs: paidPairsCount,
-        leftCarryForward: leftCF,
-        rightCarryForward: rightCF,
-        meta: {
-          leftCount: leftStats.TOTAL,
-          rightCount: rightStats.TOTAL,
-          leftEntCount: leftEntReal,
-          rightEntCount: rightEntReal,
-          leftPaidMembers: leftPaid,
-          rightPaidMembers: rightPaid,
-          leftCFMembers: leftCF,
-          rightCFMembers: rightCF,
-          leftFlushedMembers: leftFlushed,
-          rightFlushedMembers: rightFlushed,
-        },
+    return res.json({
+      rootUserId,
+      left: {
+        ...leftStats,
+        TOTAL: leftStats.TOTAL,
+        ENTREPRENEUR: leftEntReal,
+        TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
+        payoutPaidMembers: paidPairsCount,
+        carryForwardMembers: leftCF,
+      },
+      right: {
+        ...rightStats,
+        TOTAL: rightStats.TOTAL,
+        ENTREPRENEUR: rightEntReal,
+        TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
+        payoutPaidMembers: paidPairsCount,
+        carryForwardMembers: rightCF,
+      },
+      overall: {
+        TOTAL: leftStats.TOTAL + rightStats.TOTAL,
+        ENTREPRENEUR: leftEntReal + rightEntReal,
+        TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR + rightStats.TRAINEE_ENTREPRENEUR,
+        OTHER: leftStats.OTHER + rightStats.OTHER,
+      },
+      direct: directStats,
+      directReferralsList: directReferrals.map(u => ({
+        id: u.id,
+        userID: u.userID,
+        name: u.name,
+        userType: u.userType,
+        joinedAt: u.createdAt,
+      })),
+      totalPairs: paidPairsCount,
+      leftCarryForward: leftCF,
+      rightCarryForward: rightCF,
+      meta: {
+        leftCount: leftStats.TOTAL,
+        rightCount: rightStats.TOTAL,
+        leftEntCount: leftEntReal,
+        rightEntCount: rightEntReal,
+        payoutPaidMembers: paidPairsCount,
+        leftCarryForwardMembers: leftCF,
+        rightCarryForwardMembers: rightCF,
+      },
     });
   } catch (err) {
     console.error("TREE STATS ERROR =>", err);
