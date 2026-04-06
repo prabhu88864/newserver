@@ -249,16 +249,17 @@ router.get("/stats", auth, async (req, res) => {
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
       }),
-      // Successful Payouts (Matched but not Flushed) - COUNT ONLY ENTREPRENEURS FOR DISPLAY
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: false },
-        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
+      // Successful Payouts - Count specific Entrepreneur users involved in matches for this side
+      PairMatch.count({
+        where: { uplineUserId: rootUserId },
+        include: [{ model: User, as: "leftUser", where: { userType: "ENTREPRENEUR" } }],
       }),
-      PairPending.count({
-        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: true, isFlushed: false },
-        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
+      PairMatch.count({
+        where: { uplineUserId: rootUserId },
+        include: [{ model: User, as: "rightUser", where: { userType: "ENTREPRENEUR" } }],
       }),
-      // Flushed Pairs (matched but not paid due to ceiling) - Entrepreneur only for accurate "Paid" stats
+      // Flushed are tricky but usually not stored in PairMatch unless you want them to be.
+      // Since PairMatch only stores Successful ones, we stay with PairPending for flushed.
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: true },
         include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
@@ -268,6 +269,8 @@ router.get("/stats", auth, async (req, res) => {
         include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
       }),
     ]);
+
+    console.log(`BINARY STATS DEBUG for ${rootUserId} => L_Paid:${leftPaid} R_Paid:${rightPaid} L_CF:${leftCF} R_CF:${rightCF}`);
 
     const directStats = {
       TOTAL: directReferrals.length,
@@ -285,7 +288,9 @@ router.get("/stats", auth, async (req, res) => {
     // ✅ Use actual paid pairs from rootUser and carry forward from PairPending counts
     const leftEntReal = leftStats.ENTREPRENEUR;
     const rightEntReal = rightStats.ENTREPRENEUR;
-    const paidPairsCount = Number(rootUser.paidPairs || 0);
+    // Total successful entrepreneur pairs is the count of matches where BOTH sides are Entrepreneurs.
+    // However, on a PER SIDE basis, we count each Ent match on that side.
+    const overallPaidPairs = Math.min(leftPaid, rightPaid);
 
     return res.json({
       rootUserId,
@@ -321,7 +326,7 @@ router.get("/stats", auth, async (req, res) => {
         userType: u.userType,
         joinedAt: u.createdAt,
       })),
-      totalPairs: paidPairsCount,
+      totalPairs: overallPaidPairs,
       leftCarryForward: leftCF,
       rightCarryForward: rightCF,
       meta: {
@@ -329,6 +334,7 @@ router.get("/stats", auth, async (req, res) => {
         rightCount: rightStats.TOTAL,
         leftEntCount: leftEntReal,
         rightEntCount: rightEntReal,
+        payoutPaidMembers: overallPaidPairs,
         leftPaidMembers: leftPaid,
         rightPaidMembers: rightPaid,
         leftCFMembers: leftCF,
