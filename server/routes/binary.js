@@ -221,20 +221,51 @@ router.get("/stats", auth, async (req, res) => {
 
     if (!rootNode) return res.status(404).json({ msg: "Binary tree not initialized" });
 
-    // Use optimized batch collector
-    const [leftStats, rightStats, directReferrals, rootUser, leftCF, rightCF] = await Promise.all([
+    const [
+      leftStats,
+      rightStats,
+      directReferrals,
+      rootUser,
+      leftCF,
+      rightCF,
+      leftPaid,
+      rightPaid,
+      leftFlushed,
+      rightFlushed,
+    ] = await Promise.all([
       collectSubtreeStats(rootNode.leftChildId),
       collectSubtreeStats(rootNode.rightChildId),
       User.findAll({
         where: { sponsorId: rootUserId },
         attributes: ["id", "userID", "name", "userType", "createdAt"],
       }),
-      User.findByPk(rootUserId, { attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"] }),
+      User.findByPk(rootUserId, {
+        attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"],
+      }),
+      // Carry Forward (unused)
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
       }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
+      }),
+      // Successful Payouts (Matched but not Flushed) - COUNT ONLY ENTREPRENEURS FOR DISPLAY
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: false },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
+      }),
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: true, isFlushed: false },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
+      }),
+      // Flushed Pairs (matched but not paid due to ceiling) - Entrepreneur only for accurate "Paid" stats
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "LEFT", isUsed: true, isFlushed: true },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
+      }),
+      PairPending.count({
+        where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: true, isFlushed: true },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
       }),
     ]);
 
@@ -263,16 +294,18 @@ router.get("/stats", auth, async (req, res) => {
         TOTAL: leftStats.TOTAL,
         ENTREPRENEUR: leftEntReal,
         TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
-        payoutPaidMembers: paidPairsCount,
+        payoutPaidMembers: leftPaid,
         carryForwardMembers: leftCF,
+        flushedMembers: leftFlushed,
       },
       right: {
         ...rightStats,
         TOTAL: rightStats.TOTAL,
         ENTREPRENEUR: rightEntReal,
         TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
-        payoutPaidMembers: paidPairsCount,
+        payoutPaidMembers: rightPaid,
         carryForwardMembers: rightCF,
+        flushedMembers: rightFlushed,
       },
       overall: {
         TOTAL: leftStats.TOTAL + rightStats.TOTAL,
@@ -296,9 +329,12 @@ router.get("/stats", auth, async (req, res) => {
         rightCount: rightStats.TOTAL,
         leftEntCount: leftEntReal,
         rightEntCount: rightEntReal,
-        payoutPaidMembers: paidPairsCount,
-        leftCarryForwardMembers: leftCF,
-        rightCarryForwardMembers: rightCF,
+        leftPaidMembers: leftPaid,
+        rightPaidMembers: rightPaid,
+        leftCFMembers: leftCF,
+        rightCFMembers: rightCF,
+        leftFlushedMembers: leftFlushed,
+        rightFlushedMembers: rightFlushed,
       },
     });
   } catch (err) {
