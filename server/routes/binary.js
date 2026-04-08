@@ -250,14 +250,14 @@ router.get("/stats", auth, async (req, res) => {
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
       }),
-      // Successful Payouts - Count specific Entrepreneur users involved in matches for this side
+      // Successful Payouts - Count only pairs that have a valid wallet transaction
       PairMatch.count({
-        where: { uplineUserId: rootUserId },
-        include: [{ model: User, as: "leftUser", where: { userType: "ENTREPRENEUR" } }],
+        where: { uplineUserId: rootUserId, walletTransactionId: { [Op.ne]: null } },
+        include: [{ model: User, as: "leftUser" }],
       }),
       PairMatch.count({
-        where: { uplineUserId: rootUserId },
-        include: [{ model: User, as: "rightUser", where: { userType: "ENTREPRENEUR" } }],
+        where: { uplineUserId: rootUserId, walletTransactionId: { [Op.ne]: null } },
+        include: [{ model: User, as: "rightUser" }],
       }),
       // Flushed are tricky but usually not stored in PairMatch unless you want them to be.
       // Since PairMatch only stores Successful ones, we stay with PairPending for flushed.
