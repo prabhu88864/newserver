@@ -243,14 +243,12 @@ router.get("/stats", auth, async (req, res) => {
       User.findByPk(rootUserId, {
         attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"],
       }),
-      // Carry Forward (unused Entrepreneur members)
+      // Carry Forward (unused)
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
-        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
       }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
-        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }],
       }),
       // Successful Payouts - Count specific Entrepreneur users involved in matches for this side
       PairMatch.count({

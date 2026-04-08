@@ -447,20 +447,20 @@ async function triggerMatchesForUpline({ uplineUserId, t }) {
 
     if (flushCount > 0) {
       const now = new Date();
-      const leftLen = leftUnused.length;
+      // Use original unused arrays to determine the side lengths for tie-breaker
+      const leftLen = leftUnused.length; 
       const rightLen = rightUnused.length;
 
       for (let i = allowed; i < canMake; i++) {
         const l = leftUnused[i];
         const r = rightUnused[i];
 
-        // ✅ User Request: ONLY flush the side that hit the ceiling limit (the "capped" side).
-        // The side with more volume should keep its extras as carry-forward.
-        // IF BOTH SIDES ARE EQUAL: Flush Right and carry-forward Left.
+        // ✅ User Request: Tie-breaker for Left side Carry forward
         if (leftLen < rightLen) {
+          // Left is smaller, flush it
           await l.update({ isUsed: true, usedInPairMatchId: null, isFlushed: true, flushedAt: now, flushReason: "DAILY_CEILING" }, { transaction: t });
         } else {
-          // This handles (rightLen < leftLen) AND (leftLen === rightLen)
+          // Right is smaller OR Equal: Flush Right only, Left stays Carry Forward
           await r.update({ isUsed: true, usedInPairMatchId: null, isFlushed: true, flushedAt: now, flushReason: "DAILY_CEILING" }, { transaction: t });
         }
       }
