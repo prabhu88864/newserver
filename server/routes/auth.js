@@ -304,7 +304,7 @@ async function triggerMatchesForUpline({ uplineUserId, t }) {
 
   const PAIR_BONUS = (await getSettingNumber("PAIR_BONUS", t)) || 3000;
 
-  // 1) find FIFO unused left & right
+  // 1) find FIFO unused left & right (ONLY Entrepreneurs)
   const leftUnused = await PairPending.findAll({
     where: {
       uplineUserId: uplineUser.id,
@@ -312,6 +312,12 @@ async function triggerMatchesForUpline({ uplineUserId, t }) {
       isUsed: false,
       isFlushed: false,
     },
+    include: [{
+      model: User,
+      as: 'downline',
+      where: { userType: 'ENTREPRENEUR' },
+      attributes: ['id', 'userType']
+    }],
     order: [["id", "ASC"]],
     transaction: t,
     lock: t.LOCK.UPDATE,
@@ -324,6 +330,12 @@ async function triggerMatchesForUpline({ uplineUserId, t }) {
       isUsed: false,
       isFlushed: false,
     },
+    include: [{
+      model: User,
+      as: 'downline',
+      where: { userType: 'ENTREPRENEUR' },
+      attributes: ['id', 'userType']
+    }],
     order: [["id", "ASC"]],
     transaction: t,
     lock: t.LOCK.UPDATE,
