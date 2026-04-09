@@ -455,12 +455,14 @@ async function triggerMatchesForUpline({ uplineUserId, t }) {
         const l = leftUnused[i];
         const r = rightUnused[i];
 
-        // ✅ User Request: Tie-breaker for Left side Carry forward
+        // ✅ BUSINESS RULE: Flush out logic for Daily Ceiling
+        // The smaller side (or the side that caused the extra potential pairs) is flushed out,
+        // while the bigger side stays as Carry Forward.
         if (leftLen < rightLen) {
-          // Left is smaller, flush it
+          // Left is smaller, flush it. Right remains Carry Forward.
           await l.update({ isUsed: true, usedInPairMatchId: null, isFlushed: true, flushedAt: now, flushReason: "DAILY_CEILING" }, { transaction: t });
         } else {
-          // Right is smaller OR Equal: Flush Right only, Left stays Carry Forward
+          // Right is smaller OR Equal: Flush Right only, Left stays Carry Forward.
           await r.update({ isUsed: true, usedInPairMatchId: null, isFlushed: true, flushedAt: now, flushReason: "DAILY_CEILING" }, { transaction: t });
         }
       }

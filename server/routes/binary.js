@@ -243,12 +243,14 @@ router.get("/stats", auth, async (req, res) => {
       User.findByPk(rootUserId, {
         attributes: ["paidPairs", "leftCount", "rightCount", "userType", "leftEntCount", "rightEntCount"],
       }),
-      // Carry Forward (unused)
+      // Carry Forward (unused entrepreneurs only)
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "LEFT", isUsed: false, isFlushed: false },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }]
       }),
       PairPending.count({
         where: { uplineUserId: rootUserId, side: "RIGHT", isUsed: false, isFlushed: false },
+        include: [{ model: User, as: "downline", where: { userType: "ENTREPRENEUR" } }]
       }),
       // Successful Payouts - Count only pairs that have a valid wallet transaction
       PairMatch.count({
