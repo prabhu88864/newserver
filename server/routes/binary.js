@@ -303,7 +303,7 @@ router.get("/stats", auth, async (req, res) => {
         ENTREPRENEUR: leftEntReal,
         TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
         payoutPaidMembers: leftPaid,
-        carryForwardMembers: leftCF,
+        carryForwardMembers: Math.max(0, leftEntReal - leftPaid - leftFlushed),
         flushedMembers: leftFlushed,
       },
       right: {
@@ -312,7 +312,7 @@ router.get("/stats", auth, async (req, res) => {
         ENTREPRENEUR: rightEntReal,
         TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
         payoutPaidMembers: rightPaid,
-        carryForwardMembers: rightCF,
+        carryForwardMembers: Math.max(0, rightEntReal - rightPaid - rightFlushed),
         flushedMembers: rightFlushed,
       },
       overall: {
@@ -340,8 +340,8 @@ router.get("/stats", auth, async (req, res) => {
         payoutPaidMembers: overallPaidPairs,
         leftPaidMembers: leftPaid,
         rightPaidMembers: rightPaid,
-        leftCFMembers: leftCF,
-        rightCFMembers: rightCF,
+        leftCFMembers: Math.max(0, leftEntReal - leftPaid - leftFlushed),
+        rightCFMembers: Math.max(0, rightEntReal - rightPaid - rightFlushed),
         leftFlushedMembers: leftFlushed,
         rightFlushedMembers: rightFlushed,
       },
