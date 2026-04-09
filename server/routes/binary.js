@@ -330,8 +330,8 @@ router.get("/stats", auth, async (req, res) => {
         joinedAt: u.createdAt,
       })),
       totalPairs: overallPaidPairs,
-      leftCarryForward: leftCF,
-      rightCarryForward: rightCF,
+      leftCarryForward: (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) > 0 ? (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) : 0,
+      rightCarryForward: (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) > 0 ? (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) : 0,
       meta: {
         leftCount: leftStats.TOTAL,
         rightCount: rightStats.TOTAL,
