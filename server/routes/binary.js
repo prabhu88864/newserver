@@ -303,7 +303,7 @@ router.get("/stats", auth, async (req, res) => {
         ENTREPRENEUR: leftEntReal,
         TRAINEE_ENTREPRENEUR: leftStats.TRAINEE_ENTREPRENEUR,
         payoutPaidMembers: leftPaid,
-        carryForwardMembers: Math.max(0, leftEntReal - leftPaid - leftFlushed),
+        carryForwardMembers: (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) > 0 ? (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) : 0,
         flushedMembers: leftFlushed,
       },
       right: {
@@ -312,7 +312,7 @@ router.get("/stats", auth, async (req, res) => {
         ENTREPRENEUR: rightEntReal,
         TRAINEE_ENTREPRENEUR: rightStats.TRAINEE_ENTREPRENEUR,
         payoutPaidMembers: rightPaid,
-        carryForwardMembers: Math.max(0, rightEntReal - rightPaid - rightFlushed),
+        carryForwardMembers: (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) > 0 ? (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) : 0,
         flushedMembers: rightFlushed,
       },
       overall: {
@@ -340,8 +340,8 @@ router.get("/stats", auth, async (req, res) => {
         payoutPaidMembers: overallPaidPairs,
         leftPaidMembers: leftPaid,
         rightPaidMembers: rightPaid,
-        leftCFMembers: Math.max(0, leftEntReal - leftPaid - leftFlushed),
-        rightCFMembers: Math.max(0, rightEntReal - rightPaid - rightFlushed),
+        leftCFMembers: (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) > 0 ? (Number(leftEntReal) - Number(leftPaid) - Number(leftFlushed)) : 0,
+        rightCFMembers: (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) > 0 ? (Number(rightEntReal) - Number(rightPaid) - Number(rightFlushed)) : 0,
         leftFlushedMembers: leftFlushed,
         rightFlushedMembers: rightFlushed,
       },
